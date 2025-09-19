@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        php: [8.1, 8.2, 8.3]
+        
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ matrix.php }}
+        tools: composer:v2
+        coverage: none
+        
+    - name: Validate composer.json and composer.lock
+      run: composer validate --strict
+      
+    - name: Install dependencies
+      run: composer install --prefer-dist --no-progress
+      
+    - name: Run test suite
+      run: composer test
+      
+    - name: Check code style
+      run: composer cs-check
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: 8.1
+        tools: composer:v2
+        coverage: none
+        
+    - name: Validate composer.json and composer.lock
+      run: composer validate --strict
+      
+    - name: Install dependencies
+      run: composer install --prefer-dist --no-progress
+      
+    - name: Run test suite
+      run: composer test
+      
+    - name: Check code style
+      run: composer cs-check
+      
+    - name: Publish to Packagist
+      run: |
+        curl -X POST https://packagist.org/api/update-package?username=kode&apiToken=${{ secrets.PACKAGIST_API_TOKEN }} \
+        -d '{"repository":{"url":"https://github.com/kodephp/runtime"}}' \
+        -H "Content-Type: application/json"
