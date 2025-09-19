@@ -5,34 +5,43 @@ declare(strict_types=1);
 namespace Kode\Runtime;
 
 /**
- * Runtime facade class that provides a unified interface for different runtime environments.
+ * Runtime facade for unified access to different runtime environments.
  *
- * This class detects the current environment and delegates operations to the appropriate adapter.
+ * This static facade provides a unified interface to access different runtime
+ * environments like Swoole, Swow, Fiber, Process, Thread, and traditional CLI mode.
+ * It automatically detects the current environment and delegates operations
+ * to the appropriate adapter.
+ *
+ * Supported environments:
+ * - Swoole: High-performance coroutine server
+ * - Swow: Modern PHP coroutine engine
+ * - Fiber: Native PHP 8.1+ fiber support
+ * - Process: Multi-process execution using PCNTL
+ * - Thread: Multi-threaded execution using pthreads
+ * - CLI: Traditional command-line interface mode
  */
-final class Runtime
+class Runtime
 {
     /**
-     * Current runtime adapter instance
-     *
      * @var RuntimeInterface|null
      */
     private static ?RuntimeInterface $adapter = null;
 
     /**
-     * Get the current runtime environment
+     * Get the name of the current runtime environment
      *
-     * @return string Environment name (SWOOLE|SWOW|FIBER|CLI)
+     * @return string Environment name
      */
-    public static function getEnvironment(): string
+    public static function getName(): string
     {
         return self::getAdapter()->getName();
     }
 
     /**
-     * Execute a coroutine asynchronously
+     * Execute a function asynchronously in the appropriate runtime environment
      *
-     * @param callable $callback The coroutine function to execute
-     * @return mixed Coroutine handle or ID
+     * @param callable $callback The function to execute
+     * @return mixed
      */
     public static function async(callable $callback)
     {
@@ -40,7 +49,7 @@ final class Runtime
     }
 
     /**
-     * Sleep for the specified number of seconds
+     * Sleep for the specified number of seconds in the appropriate runtime environment
      *
      * @param float $seconds Number of seconds to sleep
      * @return void
@@ -53,7 +62,7 @@ final class Runtime
     /**
      * Create a new channel with the specified capacity
      *
-     * @param int $capacity Channel capacity (0 for unlimited)
+     * @param int $capacity Channel capacity
      * @return ChannelInterface
      */
     public static function createChannel(int $capacity = 0): ChannelInterface
@@ -62,7 +71,7 @@ final class Runtime
     }
 
     /**
-     * Register a callback to be executed when the current coroutine exits
+     * Register a callback to be executed when the current context exits
      *
      * @param callable $callback Cleanup function to execute
      * @return void
@@ -73,13 +82,56 @@ final class Runtime
     }
 
     /**
-     * Wait for all coroutines to complete
+     * Wait for all asynchronous operations to complete
      *
      * @return void
      */
     public static function wait(): void
     {
         self::getAdapter()->wait();
+    }
+
+    /**
+     * Fork a new process (only available in process-capable environments)
+     *
+     * @param callable $callback Function to execute in the child process
+     * @return int Process ID of the child process
+     * @throws Exception\UnsupportedOperationException If process forking is not supported
+     */
+    public static function fork(callable $callback): int
+    {
+        // Check if PCNTL is available
+        if (!function_exists('pcntl_fork')) {
+            throw new Exception\UnsupportedOperationException('Process forking is not supported in this environment');
+        }
+
+        $pid = pcntl_fork();
+
+        if ($pid === -1) {
+            // Fork failed
+            throw new Exception\RuntimeException('Failed to fork process');
+        } elseif ($pid === 0) {
+            // Child process
+            try {
+                $callback();
+            } finally {
+                exit(0);
+            }
+        } else {
+            // Parent process
+            return $pid;
+        }
+    }
+
+    /**
+     * Set a specific runtime environment
+     *
+     * @param string $environment Environment name
+     * @return void
+     */
+    public static function setEnvironment(string $environment): void
+    {
+        self::$adapter = RuntimeAdapterFactory::createForEnvironment($environment);
     }
 
     /**
@@ -90,35 +142,18 @@ final class Runtime
     private static function getAdapter(): RuntimeInterface
     {
         if (self::$adapter === null) {
-            self::$adapter = self::detectEnvironment();
+            self::$adapter = RuntimeAdapterFactory::create();
         }
-
         return self::$adapter;
     }
 
     /**
-     * Detect the current runtime environment and return the appropriate adapter
+     * Reset the runtime adapter (useful for testing)
      *
-     * @return RuntimeInterface
+     * @return void
      */
-    private static function detectEnvironment(): RuntimeInterface
+    public static function reset(): void
     {
-        // Check for Swoole
-        if (extension_loaded('swoole') && defined('SWOOLE_VERSION')) {
-            return new SwooleRuntime();
-        }
-
-        // Check for Swow
-        if (extension_loaded('swow')) {
-            return new SwowRuntime();
-        }
-
-        // Check for Fiber support
-        if (version_compare(PHP_VERSION, '8.1.0', '>=')) {
-            return new FiberRuntime();
-        }
-
-        // Fallback to CLI mode
-        return new CliRuntime();
+        self::$adapter = null;
     }
 }

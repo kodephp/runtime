@@ -4,22 +4,48 @@ declare(strict_types=1);
 
 namespace Kode\Runtime\Tests;
 
-use PHPUnit\Framework\TestCase;
 use Kode\Runtime\Runtime;
+use Kode\Runtime\RuntimeInterface;
+use PHPUnit\Framework\TestCase;
 
+/**
+ * Test cases for Runtime facade
+ */
 class RuntimeTest extends TestCase
 {
-    public function testGetEnvironment()
+    /**
+     * Test that we can detect the current environment
+     */
+    public function testGetEnvironment(): void
     {
-        // This will depend on the current environment
-        $environment = Runtime::getEnvironment();
+        $environment = Runtime::getName();
         $this->assertIsString($environment);
+        $this->assertContains($environment, ['SWOOLE', 'SWOW', 'FIBER', 'PROCESS', 'THREAD', 'CLI']);
     }
 
-    public function testCreateChannel()
+    /**
+     * Test that we can create a channel
+     */
+    public function testCreateChannel(): void
     {
-        $channel = Runtime::createChannel(10);
+        $channel = Runtime::createChannel(1);
         $this->assertNotNull($channel);
         $this->assertInstanceOf(\Kode\Runtime\ChannelInterface::class, $channel);
+    }
+
+    /**
+     * Test that we can set a specific environment
+     */
+    public function testSetEnvironment(): void
+    {
+        // Save the original environment
+        $originalEnvironment = Runtime::getName();
+
+        // Try to set to CLI environment (should always work)
+        Runtime::setEnvironment('cli');
+        $this->assertEquals('CLI', Runtime::getName());
+
+        // Reset to original environment
+        Runtime::reset();
     }
 }

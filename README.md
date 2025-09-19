@@ -1,7 +1,7 @@
 # `kode/runtime` —— 跨平台运行时抽象层
 
 > **一个为现代 PHP 常驻内存应用设计的统一运行时抽象包**  
-> 支持 Swoole、Swow、PHP Fiber（协程）及传统 CLI 模式，实现多进程、多线程、协程兼容的运行时环境  
+> 支持 Swoole、Swow、PHP Fiber（协程）、多进程、多线程及传统 CLI 模式，实现统一的运行时环境抽象  
 > 面向 PHP 8.1+，基于协变/逆变、反射与现代语言特性构建，安全、高效、简洁
 
 ---
@@ -57,8 +57,8 @@ composer require kode/runtime
 ```php
 use Kode\Runtime\Runtime;
 
-echo "当前运行环境: " . Runtime::getEnvironment(); 
-// 输出: SWOOLE | SWOW | FIBER | CLI
+echo "当前运行环境: " . Runtime::getName(); 
+// 输出: SWOOLE | SWOW | FIBER | PROCESS | THREAD | CLI
 ```
 
 ### 3. 启动协程（统一接口）
@@ -113,6 +113,45 @@ Runtime::async(function () {
 });
 ```
 
+### 6. 多进程支持
+
+```php
+// 设置运行环境为多进程模式
+Runtime::setEnvironment('process');
+
+// Fork一个子进程
+$pid = Runtime::fork(function () {
+    echo "子进程 PID: " . getmypid() . "\n";
+    Runtime::sleep(1);
+    echo "子进程执行完成\n";
+});
+
+echo "父进程 PID: " . getmypid() . "\n";
+echo "创建的子进程 PID: $pid\n";
+
+// 等待所有进程完成
+Runtime::wait();
+```
+
+### 7. 多线程支持
+
+```php
+// 设置运行环境为多线程模式
+Runtime::setEnvironment('thread');
+
+// 创建一个线程
+$thread = Runtime::async(function () {
+    echo "线程 ID: " . Thread::getCurrentThreadId() . "\n";
+    Runtime::sleep(1);
+    echo "线程执行完成\n";
+});
+
+echo "主线程继续执行\n";
+
+// 等待线程完成
+Runtime::wait();
+```
+
 ---
 
 ## 🧱 架构设计
@@ -131,10 +170,16 @@ Runtime::async(function () {
 +------------------+
          ↓
 +------------------+     +------------------+     +------------------+
-| SwooleAdapter    |     | SwowAdapter      |     | FiberAdapter     |
+| SwooleRuntime    |     | SwowRuntime      |     | FiberRuntime     |
 +------------------+     +------------------+     +------------------+
          ↓                       ↓                       ↓
      Swoole\Coroutine       Swow\Coroutine         Fiber (原生/Revolt)
+         
++------------------+     +------------------+     +------------------+
+| ProcessRuntime   |     | ThreadRuntime    |     | CliRuntime       |
++------------------+     +------------------+     +------------------+
+         ↓                       ↓                       ↓
+      pcntl_fork()          pthreads extension      Synchronous execution
 ```
 
 ### 核心类概览
@@ -143,9 +188,12 @@ Runtime::async(function () {
 |------|------|
 | `Runtime` | 静态门面，提供全局访问点 |
 | `RuntimeInterface` | 运行时接口契约 |
+| `RuntimeAdapterFactory` | 运行时适配器工厂类 |
 | `SwooleRuntime` | Swoole 适配器 |
 | `SwowRuntime` | Swow 适配器 |
 | `FiberRuntime` | PHP Fiber 适配器（基于 Revolt 或自研调度） |
+| `ProcessRuntime` | 多进程适配器 |
+| `ThreadRuntime` | 多线程适配器 |
 | `CliRuntime` | CLI 模式降级处理（同步执行） |
 | `ChannelInterface` | 通道接口 |
 | `Context` | 协程/线程安全的上下文管理器 |
@@ -157,18 +205,18 @@ Runtime::async(function () {
 ### `Runtime` 类
 
 ```php
-final class Runtime
+class Runtime
 {
     /**
-     * 检测当前运行环境
-     * @return string SWOOLE | SWOW | FIBER | CLI
+     * 获取当前运行环境名称
+     * @return string SWOOLE | SWOW | FIBER | PROCESS | THREAD | CLI
      */
-    public static function getEnvironment(): string;
+    public static function getName(): string;
 
     /**
-     * 异步执行一个协程
+     * 异步执行一个函数
      * @param callable $callback
-     * @return mixed 协程句柄或ID
+     * @return mixed 函数句柄或ID
      */
     public static function async(callable $callback);
 
@@ -176,7 +224,7 @@ final class Runtime
      * 休眠指定秒数（支持小数）
      * @param float $seconds
      */
-    public static function sleep(float $seconds);
+    public static function sleep(float $seconds): void;
 
     /**
      * 创建一个通道
@@ -186,15 +234,30 @@ final class Runtime
     public static function createChannel(int $capacity = 0): ChannelInterface;
 
     /**
-     * 注册退出时执行的回调（协程结束时）
+     * 注册退出时执行的回调
      * @param callable $callback
      */
-    public static function defer(callable $callback);
+    public static function defer(callable $callback): void;
 
     /**
-     * 等待所有协程完成（CLI/Fiber 模式需要）
+     * 等待所有异步操作完成
      */
     public static function wait(): void;
+
+    /**
+     * Fork a new process (only available in process-capable environments)
+     * @param callable $callback Function to execute in the child process
+     * @return int Process ID of the child process
+     * @throws Exception\UnsupportedOperationException If process forking is not supported
+     */
+    public static function fork(callable $callback): int;
+
+    /**
+     * 设置特定的运行环境
+     * @param string $environment Environment name
+     * @return void
+     */
+    public static function setEnvironment(string $environment): void;
 }
 ```
 
@@ -207,9 +270,9 @@ final class Runtime
 | Swoole | ✅ | v4.8+，需启用协程 |
 | Swow | ✅ | v1.5+ |
 | PHP Fiber | ✅ | PHP 8.1+，基于生成器或 Revolt |
+| 多进程 | ✅ | 基于 PCNTL 扩展，进程隔离，上下文不共享 |
+| 多线程 | ⚠️ | 实验性支持，需 ZTS PHP 和 pthreads 扩展 |
 | CLI (传统) | ✅ | 降级为同步执行，无协程 |
-| 多进程 | ✅ | 进程隔离，上下文不共享 |
-| 多线程 | ⚠️ | 实验性支持，需 ZTS PHP |
 
 > **注意**：PHP 原生 Fiber 不支持抢占式调度，建议配合事件循环（如 Revolt）使用。
 
@@ -251,6 +314,14 @@ class SwooleChannel implements ChannelInterface {
 ```bash
 composer test
 composer cs-check
+```
+
+### 8. 综合示例
+
+查看 `examples/comprehensive_example.php` 文件以了解如何使用所有功能：
+
+```bash
+php examples/comprehensive_example.php
 ```
 
 ---

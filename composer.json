@@ -1,7 +1,7 @@
 {
     "name": "kode/runtime",
     "description": "Unified runtime abstraction layer for modern PHP long-running applications",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "type": "library",
     "license": "MIT",
     "authors": [
