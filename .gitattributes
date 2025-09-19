@@ -1,0 +1,38 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Custom for Visual Studio
+*.cs     diff=csharp
+*.sln    merge=union
+*.csproj merge=union
+*.vbproj merge=union
+*.fsproj merge=union
+*.dbproj merge=union
+
+# Standard to msysgit
+*.doc	 diff=astextplain
+*.DOC	 diff=astextplain
+*.docx diff=astextplain
+*.DOCX diff=astextplain
+*.dot  diff=astextplain
+*.DOT  diff=astextplain
+*.pdf  diff=astextplain
+*.PDF  diff=astextplain
+*.rtf  diff=astextplain
+*.RTF  diff=astextplain
+
+# PHP files
+*.php linguist-language=PHP
+
+# Exporting archives
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/.trae/ export-ignore
+/.github/ export-ignore
+/tests/ export-ignore
+/phpunit.xml.dist export-ignore
+/phpcs.xml.dist export-ignore
+/phpcs.xml export-ignore
+/.php_cs.dist export-ignore
+/.php_cs export-ignore
+/composer.lock export-ignore

@@ -1,0 +1,28 @@
+# Dependencies
+/vendor/
+
+# Testing
+/phpunit.xml
+/.phpunit.cache/
+/phpstan.neon.tmp
+phpstan.neon
+
+# IDE
+/.idea/
+/.vscode/
+.trae
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Composer
+/composer.phar
+composer.lock
+
+# Logs
+/logs/*.log
+
+# Temporary files
+*.tmp
+*.temp
