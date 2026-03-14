@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Kode\Runtime\Exception;
 
 /**
- * Exception thrown when an operation is not supported in the current environment.
+ * 不支持操作异常
+ *
+ * 当操作在当前环境中不被支持时抛出
  */
-class UnsupportedOperationException extends RuntimeException
+final class UnsupportedOperationException extends RuntimeException
 {
 }

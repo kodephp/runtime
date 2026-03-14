@@ -5,14 +5,16 @@ declare(strict_types=1);
 namespace Kode\Runtime;
 
 /**
- * Swoole runtime adapter implementation.
+ * Swoole 运行时适配器
+ *
+ * 基于 Swoole 协程引擎实现的运行时
  */
-class SwooleRuntime implements RuntimeInterface
+final class SwooleRuntime implements RuntimeInterface
 {
     /**
-     * Get the name of the runtime environment
+     * 获取运行时环境名称
      *
-     * @return string Environment name
+     * @return string 环境名称
      */
     public function getName(): string
     {
@@ -20,21 +22,20 @@ class SwooleRuntime implements RuntimeInterface
     }
 
     /**
-     * Execute a coroutine asynchronously
+     * 异步执行协程
      *
-     * @param callable $callback The coroutine function to execute
-     * @return int Coroutine ID
+     * @param callable $callback 协程函数
+     * @return int 协程 ID
      */
-    public function async(callable $callback)
+    public function async(callable $callback): int
     {
         return \Swoole\Coroutine::create($callback);
     }
 
     /**
-     * Sleep for the specified number of seconds
+     * 休眠指定秒数
      *
-     * @param float $seconds Number of seconds to sleep
-     * @return void
+     * @param float $seconds 休眠秒数
      */
     public function sleep(float $seconds): void
     {
@@ -42,10 +43,10 @@ class SwooleRuntime implements RuntimeInterface
     }
 
     /**
-     * Create a new channel with the specified capacity
+     * 创建一个通道
      *
-     * @param int $capacity Channel capacity
-     * @return ChannelInterface
+     * @param int $capacity 通道容量
+     * @return ChannelInterface 通道实例
      */
     public function createChannel(int $capacity = 0): ChannelInterface
     {
@@ -53,10 +54,9 @@ class SwooleRuntime implements RuntimeInterface
     }
 
     /**
-     * Register a callback to be executed when the current coroutine exits
+     * 注册当前协程退出时执行的回调
      *
-     * @param callable $callback Cleanup function to execute
-     * @return void
+     * @param callable $callback 清理函数
      */
     public function defer(callable $callback): void
     {
@@ -64,12 +64,9 @@ class SwooleRuntime implements RuntimeInterface
     }
 
     /**
-     * Wait for all coroutines to complete
-     *
-     * @return void
+     * 等待所有协程完成（Swoole 模式下自动处理）
      */
     public function wait(): void
     {
-        // Swoole handles this automatically in coroutine mode
     }
 }

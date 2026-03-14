@@ -9,18 +9,17 @@ use Kode\Runtime\RuntimeAdapterFactory;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Test cases for ThreadRuntime adapter
+ * ThreadRuntime 适配器测试
  */
-class ThreadRuntimeTest extends TestCase
+final class ThreadRuntimeTest extends TestCase
 {
     /**
-     * Test that ThreadRuntime can be created via factory
+     * 测试线程运行时创建
      */
     public function testThreadRuntimeCreation(): void
     {
-        // Skip test if pthreads is not available
         if (!extension_loaded('pthreads')) {
-            $this->markTestSkipped('pthreads extension is not available');
+            $this->markTestSkipped('pthreads 扩展不可用');
         }
 
         $runtime = RuntimeAdapterFactory::createForEnvironment(RuntimeAdapterFactory::ENV_THREAD);
@@ -29,32 +28,27 @@ class ThreadRuntimeTest extends TestCase
     }
 
     /**
-     * Test async execution in thread mode
+     * 测试异步执行
      */
     public function testAsyncExecution(): void
     {
-        // Skip test if pthreads is not available
         if (!extension_loaded('pthreads')) {
-            $this->markTestSkipped('pthreads extension is not available');
+            $this->markTestSkipped('pthreads 扩展不可用');
         }
 
         $runtime = new ThreadRuntime();
-        $result = null;
 
-        $thread = $runtime->async(function () use (&$result) {
-            $result = 'executed';
+        $thread = $runtime->async(function () {
         });
 
         $this->assertNotNull($thread);
         $this->assertInstanceOf(\Thread::class, $thread);
 
-        // Wait for the thread to complete
         $thread->join();
-        $this->assertTrue(true); // If we get here without error, the test passed
     }
 
     /**
-     * Test channel creation in thread mode
+     * 测试通道创建
      */
     public function testChannelCreation(): void
     {
@@ -67,13 +61,12 @@ class ThreadRuntimeTest extends TestCase
     }
 
     /**
-     * Test sleep functionality in thread mode
+     * 测试休眠功能
      */
     public function testSleep(): void
     {
         $runtime = new ThreadRuntime();
 
-        // This should not throw an exception
         $runtime->sleep(0.001);
         $this->assertTrue(true);
     }

@@ -2,7 +2,7 @@
 
 > **一个为现代 PHP 常驻内存应用设计的统一运行时抽象包**  
 > 支持 Swoole、Swow、PHP Fiber（协程）、多进程、多线程及传统 CLI 模式，实现统一的运行时环境抽象  
-> 面向 PHP 8.1+，基于协变/逆变、反射与现代语言特性构建，安全、高效、简洁
+> 面向 PHP 8.1+，基于协变/逆变、readonly、match 等 PHP 8+ 新特性构建
 
 ---
 
@@ -191,7 +191,7 @@ Runtime::wait();
 | `RuntimeAdapterFactory` | 运行时适配器工厂类 |
 | `SwooleRuntime` | Swoole 适配器 |
 | `SwowRuntime` | Swow 适配器 |
-| `FiberRuntime` | PHP Fiber 适配器（基于 Revolt 或自研调度） |
+| `FiberRuntime` | PHP Fiber 适配器 |
 | `ProcessRuntime` | 多进程适配器 |
 | `ThreadRuntime` | 多线程适配器 |
 | `CliRuntime` | CLI 模式降级处理（同步执行） |
@@ -205,59 +205,17 @@ Runtime::wait();
 ### `Runtime` 类
 
 ```php
-class Runtime
+final class Runtime
 {
-    /**
-     * 获取当前运行环境名称
-     * @return string SWOOLE | SWOW | FIBER | PROCESS | THREAD | CLI
-     */
     public static function getName(): string;
-
-    /**
-     * 异步执行一个函数
-     * @param callable $callback
-     * @return mixed 函数句柄或ID
-     */
-    public static function async(callable $callback);
-
-    /**
-     * 休眠指定秒数（支持小数）
-     * @param float $seconds
-     */
+    public static function async(callable $callback): mixed;
     public static function sleep(float $seconds): void;
-
-    /**
-     * 创建一个通道
-     * @param int $capacity
-     * @return ChannelInterface
-     */
     public static function createChannel(int $capacity = 0): ChannelInterface;
-
-    /**
-     * 注册退出时执行的回调
-     * @param callable $callback
-     */
     public static function defer(callable $callback): void;
-
-    /**
-     * 等待所有异步操作完成
-     */
     public static function wait(): void;
-
-    /**
-     * Fork a new process (only available in process-capable environments)
-     * @param callable $callback Function to execute in the child process
-     * @return int Process ID of the child process
-     * @throws Exception\UnsupportedOperationException If process forking is not supported
-     */
     public static function fork(callable $callback): int;
-
-    /**
-     * 设置特定的运行环境
-     * @param string $environment Environment name
-     * @return void
-     */
     public static function setEnvironment(string $environment): void;
+    public static function reset(): void;
 }
 ```
 
@@ -280,29 +238,9 @@ class Runtime
 
 ## 🛡️ 安全与性能
 
-- **类型安全**：全面使用 PHP 8.1+ 的 `never`、`readonly`、协变/逆变
-- **反射优化**：缓存反射结果，避免重复解析
+- **类型安全**：全面使用 PHP 8.1+ 的 `readonly`、`final`、`match` 等特性
 - **内存管理**：自动清理协程栈，防止内存泄漏
 - **异常处理**：统一捕获协程内异常，避免崩溃
-
-```php
-// 示例：协变返回类型
-interface ChannelInterface {
-    public function pop(): mixed;
-}
-
-class SwooleChannel implements ChannelInterface {
-    public function pop(): mixed { /* ... */ }
-}
-```
-
----
-
-## 🧩 扩展建议
-
-- 已集成 `kode/context` 包，实现请求级上下文追踪
-- 支持 `OpenTelemetry` 分布式追踪上下文传递
-- 提供 `Runtime::runInCoroutine()` 自动协程化同步代码（实验）
 
 ---
 
@@ -314,14 +252,6 @@ class SwooleChannel implements ChannelInterface {
 ```bash
 composer test
 composer cs-check
-```
-
-### 8. 综合示例
-
-查看 `examples/comprehensive_example.php` 文件以了解如何使用所有功能：
-
-```bash
-php examples/comprehensive_example.php
 ```
 
 ---

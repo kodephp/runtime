@@ -5,50 +5,50 @@ declare(strict_types=1);
 namespace Kode\Runtime;
 
 /**
- * Interface for channel implementations that provides a unified API for coroutine communication.
+ * 通道接口
+ *
+ * 提供协程间通信的统一抽象接口
  */
 interface ChannelInterface
 {
     /**
-     * Push data to the channel
+     * 向通道推送数据
      *
-     * @param mixed $data Data to push
-     * @return bool True if data was pushed successfully, false otherwise
+     * @param mixed $data 要推送的数据
+     * @return bool 推送成功返回 true，失败返回 false
      */
     public function push(mixed $data): bool;
 
     /**
-     * Pop data from the channel
+     * 从通道弹出数据
      *
-     * @return mixed Data from the channel
+     * @return mixed 通道中的数据，如果通道为空或已关闭则返回 null
      */
     public function pop(): mixed;
 
     /**
-     * Get the current capacity of the channel
+     * 获取通道容量
      *
-     * @return int Current capacity
+     * @return int 通道容量
      */
     public function getCapacity(): int;
 
     /**
-     * Get the current length of the channel (number of items in the channel)
+     * 获取通道当前长度（通道中的元素数量）
      *
-     * @return int Current length
+     * @return int 当前长度
      */
     public function getLength(): int;
 
     /**
-     * Close the channel
-     *
-     * @return void
+     * 关闭通道
      */
     public function close(): void;
 
     /**
-     * Check if the channel is closed
+     * 检查通道是否已关闭
      *
-     * @return bool True if channel is closed, false otherwise
+     * @return bool 已关闭返回 true，否则返回 false
      */
     public function isClosed(): bool;
 }

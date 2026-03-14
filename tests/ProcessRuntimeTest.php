@@ -9,18 +9,17 @@ use Kode\Runtime\RuntimeAdapterFactory;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Test cases for ProcessRuntime adapter
+ * ProcessRuntime 适配器测试
  */
-class ProcessRuntimeTest extends TestCase
+final class ProcessRuntimeTest extends TestCase
 {
     /**
-     * Test that ProcessRuntime can be created via factory
+     * 测试进程运行时创建
      */
     public function testProcessRuntimeCreation(): void
     {
-        // Skip test if PCNTL is not available
         if (!function_exists('pcntl_fork')) {
-            $this->markTestSkipped('PCNTL extension is not available');
+            $this->markTestSkipped('PCNTL 扩展不可用');
         }
 
         $runtime = RuntimeAdapterFactory::createForEnvironment(RuntimeAdapterFactory::ENV_PROCESS);
@@ -29,32 +28,27 @@ class ProcessRuntimeTest extends TestCase
     }
 
     /**
-     * Test async execution in process mode
+     * 测试异步执行
      */
     public function testAsyncExecution(): void
     {
-        // Skip test if PCNTL is not available
         if (!function_exists('pcntl_fork')) {
-            $this->markTestSkipped('PCNTL extension is not available');
+            $this->markTestSkipped('PCNTL 扩展不可用');
         }
 
         $runtime = new ProcessRuntime();
-        $result = null;
 
-        $pid = $runtime->async(function () use (&$result) {
-            $result = 'executed';
+        $pid = $runtime->async(function () {
         });
 
         $this->assertIsInt($pid);
         $this->assertGreaterThan(0, $pid);
 
-        // Wait for the process to complete
         pcntl_waitpid($pid, $status);
-        $this->assertTrue(true); // If we get here without error, the test passed
     }
 
     /**
-     * Test channel creation in process mode
+     * 测试通道创建
      */
     public function testChannelCreation(): void
     {
@@ -67,13 +61,12 @@ class ProcessRuntimeTest extends TestCase
     }
 
     /**
-     * Test sleep functionality in process mode
+     * 测试休眠功能
      */
     public function testSleep(): void
     {
         $runtime = new ProcessRuntime();
 
-        // This should not throw an exception
         $runtime->sleep(0.001);
         $this->assertTrue(true);
     }

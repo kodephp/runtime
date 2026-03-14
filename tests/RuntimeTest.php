@@ -5,16 +5,15 @@ declare(strict_types=1);
 namespace Kode\Runtime\Tests;
 
 use Kode\Runtime\Runtime;
-use Kode\Runtime\RuntimeInterface;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Test cases for Runtime facade
+ * Runtime 门面测试
  */
-class RuntimeTest extends TestCase
+final class RuntimeTest extends TestCase
 {
     /**
-     * Test that we can detect the current environment
+     * 测试环境检测
      */
     public function testGetEnvironment(): void
     {
@@ -24,7 +23,7 @@ class RuntimeTest extends TestCase
     }
 
     /**
-     * Test that we can create a channel
+     * 测试通道创建
      */
     public function testCreateChannel(): void
     {
@@ -34,18 +33,13 @@ class RuntimeTest extends TestCase
     }
 
     /**
-     * Test that we can set a specific environment
+     * 测试设置环境
      */
     public function testSetEnvironment(): void
     {
-        // Save the original environment
-        $originalEnvironment = Runtime::getName();
-
-        // Try to set to CLI environment (should always work)
         Runtime::setEnvironment('cli');
         $this->assertEquals('CLI', Runtime::getName());
 
-        // Reset to original environment
         Runtime::reset();
     }
 }

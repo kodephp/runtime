@@ -5,22 +5,19 @@ declare(strict_types=1);
 namespace Kode\Runtime;
 
 /**
- * Thread runtime adapter implementation for multi-threaded environments.
+ * 线程运行时适配器
  *
- * This adapter provides thread-level parallelism using the pthreads extension.
- * Note: This requires PHP to be compiled with ZTS (Zend Thread Safety) support.
+ * 基于 pthreads 扩展实现的多线程运行时
+ * 注意：需要 ZTS（Zend Thread Safety）版本的 PHP
  */
-class ThreadRuntime implements RuntimeInterface
+final class ThreadRuntime implements RuntimeInterface
 {
-    /**
-     * @var array[\Thread]
-     */
     private static array $threads = [];
 
     /**
-     * Get the name of the runtime environment
+     * 获取运行时环境名称
      *
-     * @return string Environment name
+     * @return string 环境名称
      */
     public function getName(): string
     {
@@ -28,29 +25,28 @@ class ThreadRuntime implements RuntimeInterface
     }
 
     /**
-     * Execute a function in a separate thread
+     * 在独立线程中执行函数
      *
-     * @param callable $callback The function to execute
-     * @return \Thread Thread instance
+     * @param callable $callback 要执行的函数
+     * @return \Thread 线程实例
      */
-    public function async(callable $callback)
+    public function async(callable $callback): \Thread
     {
-        // Check if pthreads is available
         if (!extension_loaded('pthreads')) {
-            throw new Exception\UnsupportedOperationException('pthreads extension is not available');
+            throw new Exception\UnsupportedOperationException('pthreads 扩展不可用');
         }
 
         $thread = new class ($callback) extends \Thread {
-            private $callback;
+            private readonly \Closure $callback;
 
             public function __construct(callable $callback)
             {
-                $this->callback = $callback;
+                $this->callback = $callback(...);
             }
 
-            public function run()
+            public function run(): void
             {
-                call_user_func($this->callback);
+                ($this->callback)();
             }
         };
 
@@ -60,46 +56,39 @@ class ThreadRuntime implements RuntimeInterface
     }
 
     /**
-     * Sleep for the specified number of seconds
+     * 休眠指定秒数
      *
-     * @param float $seconds Number of seconds to sleep
-     * @return void
+     * @param float $seconds 休眠秒数
      */
     public function sleep(float $seconds): void
     {
         if ($seconds > 0) {
-            usleep((int)($seconds * 1000000));
+            usleep((int)($seconds * 1_000_000));
         }
     }
 
     /**
-     * Create a new channel with the specified capacity
+     * 创建一个通道
      *
-     * @param int $capacity Channel capacity
-     * @return ChannelInterface
+     * @param int $capacity 通道容量
+     * @return ChannelInterface 通道实例
      */
     public function createChannel(int $capacity = 0): ChannelInterface
     {
-        // In thread mode, we use a thread-safe queue-based channel
         return new CliChannel($capacity);
     }
 
     /**
-     * Register a callback to be executed when the current thread exits
+     * 注册当前线程退出时执行的回调
      *
-     * @param callable $callback Cleanup function to execute
-     * @return void
+     * @param callable $callback 清理函数
      */
     public function defer(callable $callback): void
     {
-        // In thread mode, we can't use register_shutdown_function
-        // The callback should be handled within the thread's run method
     }
 
     /**
-     * Wait for all threads to complete
-     *
-     * @return void
+     * 等待所有线程完成
      */
     public function wait(): void
     {

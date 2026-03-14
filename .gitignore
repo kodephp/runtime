@@ -10,7 +10,7 @@ phpstan.neon
 # IDE
 /.idea/
 /.vscode/
-.trae
+/.trae
 
 # OS
 .DS_Store

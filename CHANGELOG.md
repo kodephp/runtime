@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2025-03-14
+
+### Added
+- 支持 PHP 8.1+ 新特性
+- 使用 `match` 表达式替代 `switch` 语句
+- 使用 `readonly` 属性提升不可变性
+- 所有实现类添加 `final` 关键字防止继承滥用
+- 所有注释改为中文
+
+### Changed
+- **Breaking**: 删除重复的 `FiberChannel` 类，统一使用 `CliChannel`
+- **Breaking**: 删除 `RuntimeAdapterFactory` 中冗余的工厂方法
+- 优化 `ProcessRuntime::sleep()` 支持微秒级精度
+- 优化 `SwowRuntime::sleep()` 实现，修复阻塞问题
+- 优化 `SwowRuntime::async()` 使用 `\Swow\Coroutine::run()`
+- 简化所有类的 PHPDoc 注释
+- 使用数字分隔符 `1_000_000` 提高代码可读性
+- composer.json 描述改为中文
+
+### Removed
+- 删除 `examples/` 目录（示例代码可在 README 中查看）
+- 删除 `FiberChannel.php` 重复文件
+- 删除 `RuntimeAdapterFactory` 中冗余的工厂方法
+
 ## [1.2.0] - 2025-09-20
 
 ### Added

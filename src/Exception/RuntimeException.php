@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Kode\Runtime\Exception;
 
 /**
- * Runtime exception for the Kode Runtime package.
+ * 运行时异常
+ *
+ * Kode Runtime 包的基础异常类
  */
-class RuntimeException extends \RuntimeException
+final class RuntimeException extends \RuntimeException
 {
 }

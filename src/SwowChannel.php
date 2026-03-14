@@ -5,19 +5,18 @@ declare(strict_types=1);
 namespace Kode\Runtime;
 
 /**
- * Swow channel implementation.
+ * Swow 通道实现
+ *
+ * 基于 Swow\Channel 实现的通道
  */
-class SwowChannel implements ChannelInterface
+final class SwowChannel implements ChannelInterface
 {
-    /**
-     * @var \Swow\Channel
-     */
-    private \Swow\Channel $channel;
+    private readonly \Swow\Channel $channel;
 
     /**
-     * Create a new Swow channel
+     * 创建新的 Swow 通道
      *
-     * @param int $capacity Channel capacity
+     * @param int $capacity 通道容量
      */
     public function __construct(int $capacity = 0)
     {
@@ -25,39 +24,39 @@ class SwowChannel implements ChannelInterface
     }
 
     /**
-     * Push data to the channel
+     * 向通道推送数据
      *
-     * @param mixed $data Data to push
-     * @return bool True if data was pushed successfully, false otherwise
+     * @param mixed $data 要推送的数据
+     * @return bool 推送成功返回 true，失败返回 false
      */
     public function push(mixed $data): bool
     {
         try {
             $this->channel->push($data);
             return true;
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             return false;
         }
     }
 
     /**
-     * Pop data from the channel
+     * 从通道弹出数据
      *
-     * @return mixed Data from the channel
+     * @return mixed 通道中的数据
      */
     public function pop(): mixed
     {
         try {
             return $this->channel->pop();
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             return null;
         }
     }
 
     /**
-     * Get the current capacity of the channel
+     * 获取通道容量
      *
-     * @return int Current capacity
+     * @return int 通道容量
      */
     public function getCapacity(): int
     {
@@ -65,9 +64,9 @@ class SwowChannel implements ChannelInterface
     }
 
     /**
-     * Get the current length of the channel (number of items in the channel)
+     * 获取通道当前长度
      *
-     * @return int Current length
+     * @return int 当前长度
      */
     public function getLength(): int
     {
@@ -75,9 +74,7 @@ class SwowChannel implements ChannelInterface
     }
 
     /**
-     * Close the channel
-     *
-     * @return void
+     * 关闭通道
      */
     public function close(): void
     {
@@ -85,12 +82,12 @@ class SwowChannel implements ChannelInterface
     }
 
     /**
-     * Check if the channel is closed
+     * 检查通道是否已关闭
      *
-     * @return bool True if channel is closed, false otherwise
+     * @return bool 已关闭返回 true，否则返回 false
      */
     public function isClosed(): bool
     {
-        return $this->channel->isAvailable() === false;
+        return !$this->channel->isAvailable();
     }
 }

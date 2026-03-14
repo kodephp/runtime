@@ -1,13 +1,14 @@
 {
     "name": "kode/runtime",
-    "description": "Unified runtime abstraction layer for modern PHP long-running applications",
-    "version": "1.2.0",
+    "description": "现代 PHP 常驻内存应用的统一运行时抽象层",
+    "keywords": ["runtime", "swoole", "swow", "fiber", "coroutine", "async", "php"],
+    "version": "2.0.0",
     "type": "library",
-    "license": "MIT",
+    "license": "Apache-2.0",
     "authors": [
         {
             "name": "Kode Team",
-            "email": "team@kode-php.org"
+            "email": "382601296@qq.com"
         }
     ],
     "require": {
@@ -35,7 +36,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "1.0-dev"
+            "dev-main": "2.0-dev"
         }
     },
     "config": {

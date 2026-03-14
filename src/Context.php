@@ -7,22 +7,19 @@ namespace Kode\Runtime;
 use Kode\Context\Context as KodeContext;
 
 /**
- * Context manager for coroutine/thread-safe storage.
+ * 上下文管理器
  *
- * This class provides a way to store and retrieve values that are local to the current
- * execution context (coroutine, thread, or global scope).
- *
- * This implementation uses the kode/context package for context management.
+ * 提供协程/线程安全的上下文存储
+ * 基于 kode/context 包实现
  */
-class Context
+final class Context
 {
     /**
-     * Set a value in the context
+     * 设置上下文值
      *
-     * @param string $key The key to store the value under
-     * @param mixed $value The value to store
-     * @param string $namespace The namespace to store the value in (default: global)
-     * @return void
+     * @param string $key 键名
+     * @param mixed $value 值
+     * @param string $namespace 命名空间（默认：global）
      */
     public static function set(string $key, mixed $value, string $namespace = 'global'): void
     {
@@ -30,11 +27,11 @@ class Context
     }
 
     /**
-     * Get a value from the context
+     * 获取上下文值
      *
-     * @param string $key The key to retrieve the value for
-     * @param string $namespace The namespace to retrieve the value from (default: global)
-     * @return mixed The value stored under the key, or null if not found
+     * @param string $key 键名
+     * @param string $namespace 命名空间（默认：global）
+     * @return mixed 值，不存在则返回 null
      */
     public static function get(string $key, string $namespace = 'global'): mixed
     {
@@ -42,11 +39,10 @@ class Context
     }
 
     /**
-     * Delete a value from the context
+     * 删除上下文值
      *
-     * @param string $key The key to delete
-     * @param string $namespace The namespace to delete the key from (default: global)
-     * @return void
+     * @param string $key 键名
+     * @param string $namespace 命名空间（默认：global）
      */
     public static function delete(string $key, string $namespace = 'global'): void
     {

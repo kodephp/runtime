@@ -5,32 +5,19 @@ declare(strict_types=1);
 namespace Kode\Runtime;
 
 /**
- * Runtime facade for unified access to different runtime environments.
+ * 运行时门面类
  *
- * This static facade provides a unified interface to access different runtime
- * environments like Swoole, Swow, Fiber, Process, Thread, and traditional CLI mode.
- * It automatically detects the current environment and delegates operations
- * to the appropriate adapter.
- *
- * Supported environments:
- * - Swoole: High-performance coroutine server
- * - Swow: Modern PHP coroutine engine
- * - Fiber: Native PHP 8.1+ fiber support
- * - Process: Multi-process execution using PCNTL
- * - Thread: Multi-threaded execution using pthreads
- * - CLI: Traditional command-line interface mode
+ * 提供统一的静态接口访问不同运行时环境
+ * 支持 Swoole、Swow、Fiber、Process、Thread 和 CLI 模式
  */
-class Runtime
+final class Runtime
 {
-    /**
-     * @var RuntimeInterface|null
-     */
     private static ?RuntimeInterface $adapter = null;
 
     /**
-     * Get the name of the current runtime environment
+     * 获取当前运行时环境名称
      *
-     * @return string Environment name
+     * @return string 环境名称
      */
     public static function getName(): string
     {
@@ -38,21 +25,20 @@ class Runtime
     }
 
     /**
-     * Execute a function asynchronously in the appropriate runtime environment
+     * 异步执行函数
      *
-     * @param callable $callback The function to execute
-     * @return mixed
+     * @param callable $callback 要执行的函数
+     * @return mixed 协程句柄或 ID
      */
-    public static function async(callable $callback)
+    public static function async(callable $callback): mixed
     {
         return self::getAdapter()->async($callback);
     }
 
     /**
-     * Sleep for the specified number of seconds in the appropriate runtime environment
+     * 休眠指定秒数
      *
-     * @param float $seconds Number of seconds to sleep
-     * @return void
+     * @param float $seconds 休眠秒数
      */
     public static function sleep(float $seconds): void
     {
@@ -60,10 +46,10 @@ class Runtime
     }
 
     /**
-     * Create a new channel with the specified capacity
+     * 创建一个通道
      *
-     * @param int $capacity Channel capacity
-     * @return ChannelInterface
+     * @param int $capacity 通道容量
+     * @return ChannelInterface 通道实例
      */
     public static function createChannel(int $capacity = 0): ChannelInterface
     {
@@ -71,10 +57,9 @@ class Runtime
     }
 
     /**
-     * Register a callback to be executed when the current context exits
+     * 注册当前上下文退出时执行的回调
      *
-     * @param callable $callback Cleanup function to execute
-     * @return void
+     * @param callable $callback 清理函数
      */
     public static function defer(callable $callback): void
     {
@@ -82,9 +67,7 @@ class Runtime
     }
 
     /**
-     * Wait for all asynchronous operations to complete
-     *
-     * @return void
+     * 等待所有异步操作完成
      */
     public static function wait(): void
     {
@@ -92,42 +75,37 @@ class Runtime
     }
 
     /**
-     * Fork a new process (only available in process-capable environments)
+     * 创建子进程（仅在支持进程的环境中可用）
      *
-     * @param callable $callback Function to execute in the child process
-     * @return int Process ID of the child process
-     * @throws Exception\UnsupportedOperationException If process forking is not supported
+     * @param callable $callback 子进程中执行的函数
+     * @return int 子进程 ID
+     * @throws Exception\UnsupportedOperationException 如果环境不支持进程创建
      */
     public static function fork(callable $callback): int
     {
-        // Check if PCNTL is available
         if (!function_exists('pcntl_fork')) {
-            throw new Exception\UnsupportedOperationException('Process forking is not supported in this environment');
+            throw new Exception\UnsupportedOperationException('当前环境不支持进程创建');
         }
 
         $pid = pcntl_fork();
 
         if ($pid === -1) {
-            // Fork failed
-            throw new Exception\RuntimeException('Failed to fork process');
+            throw new Exception\RuntimeException('进程创建失败');
         } elseif ($pid === 0) {
-            // Child process
             try {
                 $callback();
             } finally {
                 exit(0);
             }
         } else {
-            // Parent process
             return $pid;
         }
     }
 
     /**
-     * Set a specific runtime environment
+     * 设置特定的运行时环境
      *
-     * @param string $environment Environment name
-     * @return void
+     * @param string $environment 环境名称
      */
     public static function setEnvironment(string $environment): void
     {
@@ -135,9 +113,9 @@ class Runtime
     }
 
     /**
-     * Get the appropriate runtime adapter for the current environment
+     * 获取当前运行时适配器
      *
-     * @return RuntimeInterface
+     * @return RuntimeInterface 适配器实例
      */
     private static function getAdapter(): RuntimeInterface
     {
@@ -148,9 +126,7 @@ class Runtime
     }
 
     /**
-     * Reset the runtime adapter (useful for testing)
-     *
-     * @return void
+     * 重置运行时适配器（用于测试）
      */
     public static function reset(): void
     {

@@ -5,53 +5,51 @@ declare(strict_types=1);
 namespace Kode\Runtime;
 
 /**
- * Interface for runtime adapters that provides a unified API across different environments.
+ * 运行时接口
+ *
+ * 定义运行时适配器的统一接口，支持不同运行环境的抽象
  */
 interface RuntimeInterface
 {
     /**
-     * Get the name of the runtime environment
+     * 获取运行时环境名称
      *
-     * @return string Environment name (SWOOLE|SWOW|FIBER|CLI)
+     * @return string 环境名称（SWOOLE|SWOW|FIBER|PROCESS|THREAD|CLI）
      */
     public function getName(): string;
 
     /**
-     * Execute a coroutine asynchronously
+     * 异步执行一个函数
      *
-     * @param callable $callback The coroutine function to execute
-     * @return mixed Coroutine handle or ID
+     * @param callable $callback 要执行的函数
+     * @return mixed 协程句柄或 ID
      */
-    public function async(callable $callback);
+    public function async(callable $callback): mixed;
 
     /**
-     * Sleep for the specified number of seconds
+     * 休眠指定秒数
      *
-     * @param float $seconds Number of seconds to sleep
-     * @return void
+     * @param float $seconds 休眠秒数（支持小数）
      */
     public function sleep(float $seconds): void;
 
     /**
-     * Create a new channel with the specified capacity
+     * 创建一个通道
      *
-     * @param int $capacity Channel capacity (0 for unlimited)
-     * @return ChannelInterface
+     * @param int $capacity 通道容量，0 表示无限制
+     * @return ChannelInterface 通道实例
      */
     public function createChannel(int $capacity = 0): ChannelInterface;
 
     /**
-     * Register a callback to be executed when the current coroutine exits
+     * 注册当前协程退出时执行的回调
      *
-     * @param callable $callback Cleanup function to execute
-     * @return void
+     * @param callable $callback 清理函数
      */
     public function defer(callable $callback): void;
 
     /**
-     * Wait for all coroutines to complete
-     *
-     * @return void
+     * 等待所有协程完成
      */
     public function wait(): void;
 }

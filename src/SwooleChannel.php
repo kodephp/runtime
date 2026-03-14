@@ -5,19 +5,18 @@ declare(strict_types=1);
 namespace Kode\Runtime;
 
 /**
- * Swoole channel implementation.
+ * Swoole 通道实现
+ *
+ * 基于 Swoole\Coroutine\Channel 实现的通道
  */
-class SwooleChannel implements ChannelInterface
+final class SwooleChannel implements ChannelInterface
 {
-    /**
-     * @var \Swoole\Coroutine\Channel
-     */
-    private \Swoole\Coroutine\Channel $channel;
+    private readonly \Swoole\Coroutine\Channel $channel;
 
     /**
-     * Create a new Swoole channel
+     * 创建新的 Swoole 通道
      *
-     * @param int $capacity Channel capacity
+     * @param int $capacity 通道容量
      */
     public function __construct(int $capacity = 0)
     {
@@ -25,10 +24,10 @@ class SwooleChannel implements ChannelInterface
     }
 
     /**
-     * Push data to the channel
+     * 向通道推送数据
      *
-     * @param mixed $data Data to push
-     * @return bool True if data was pushed successfully, false otherwise
+     * @param mixed $data 要推送的数据
+     * @return bool 推送成功返回 true，失败返回 false
      */
     public function push(mixed $data): bool
     {
@@ -36,9 +35,9 @@ class SwooleChannel implements ChannelInterface
     }
 
     /**
-     * Pop data from the channel
+     * 从通道弹出数据
      *
-     * @return mixed Data from the channel
+     * @return mixed 通道中的数据
      */
     public function pop(): mixed
     {
@@ -46,9 +45,9 @@ class SwooleChannel implements ChannelInterface
     }
 
     /**
-     * Get the current capacity of the channel
+     * 获取通道容量
      *
-     * @return int Current capacity
+     * @return int 通道容量
      */
     public function getCapacity(): int
     {
@@ -56,9 +55,9 @@ class SwooleChannel implements ChannelInterface
     }
 
     /**
-     * Get the current length of the channel (number of items in the channel)
+     * 获取通道当前长度
      *
-     * @return int Current length
+     * @return int 当前长度
      */
     public function getLength(): int
     {
@@ -66,9 +65,7 @@ class SwooleChannel implements ChannelInterface
     }
 
     /**
-     * Close the channel
-     *
-     * @return void
+     * 关闭通道
      */
     public function close(): void
     {
@@ -76,17 +73,15 @@ class SwooleChannel implements ChannelInterface
     }
 
     /**
-     * Check if the channel is closed
+     * 检查通道是否已关闭
      *
-     * @return bool True if channel is closed, false otherwise
+     * @return bool 已关闭返回 true，否则返回 false
      */
     public function isClosed(): bool
     {
-        // Swoole channels don't have an explicit isClosed method
-        // We can check if the channel is null or has been closed
         try {
             return $this->channel->errCode === SWOOLE_CHANNEL_CLOSED;
-        } catch (\Error $e) {
+        } catch (\Error) {
             return true;
         }
     }

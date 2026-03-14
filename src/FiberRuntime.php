@@ -5,24 +5,19 @@ declare(strict_types=1);
 namespace Kode\Runtime;
 
 /**
- * Fiber runtime adapter implementation.
+ * Fiber 运行时适配器
+ *
+ * 基于 PHP 8.1+ 原生 Fiber 实现的协程运行时
  */
-class FiberRuntime implements RuntimeInterface
+final class FiberRuntime implements RuntimeInterface
 {
-    /**
-     * @var array[\Fiber]
-     */
     private static array $fibers = [];
-
-    /**
-     * @var array[callable]
-     */
     private static array $deferCallbacks = [];
 
     /**
-     * Get the name of the runtime environment
+     * 获取运行时环境名称
      *
-     * @return string Environment name
+     * @return string 环境名称
      */
     public function getName(): string
     {
@@ -30,23 +25,21 @@ class FiberRuntime implements RuntimeInterface
     }
 
     /**
-     * Execute a coroutine asynchronously
+     * 异步执行协程
      *
-     * @param callable $callback The coroutine function to execute
-     * @return \Fiber Fiber instance
+     * @param callable $callback 协程函数
+     * @return \Fiber Fiber 实例
      */
-    public function async(callable $callback)
+    public function async(callable $callback): \Fiber
     {
-        $fiber = new \Fiber(function () use ($callback) {
+        $fiber = new \Fiber(function () use ($callback): void {
             try {
                 $callback();
             } finally {
-                // Execute defer callbacks
                 foreach (array_reverse(self::$deferCallbacks) as $deferCallback) {
                     try {
                         $deferCallback();
-                    } catch (\Throwable $e) {
-                        // Log error but continue
+                    } catch (\Throwable) {
                     }
                 }
                 self::$deferCallbacks = [];
@@ -59,10 +52,9 @@ class FiberRuntime implements RuntimeInterface
     }
 
     /**
-     * Sleep for the specified number of seconds
+     * 休眠指定秒数
      *
-     * @param float $seconds Number of seconds to sleep
-     * @return void
+     * @param float $seconds 休眠秒数
      */
     public function sleep(float $seconds): void
     {
@@ -77,21 +69,20 @@ class FiberRuntime implements RuntimeInterface
     }
 
     /**
-     * Create a new channel with the specified capacity
+     * 创建一个通道
      *
-     * @param int $capacity Channel capacity
-     * @return ChannelInterface
+     * @param int $capacity 通道容量
+     * @return ChannelInterface 通道实例
      */
     public function createChannel(int $capacity = 0): ChannelInterface
     {
-        return new FiberChannel($capacity);
+        return new CliChannel($capacity);
     }
 
     /**
-     * Register a callback to be executed when the current coroutine exits
+     * 注册当前协程退出时执行的回调
      *
-     * @param callable $callback Cleanup function to execute
-     * @return void
+     * @param callable $callback 清理函数
      */
     public function defer(callable $callback): void
     {
@@ -99,20 +90,15 @@ class FiberRuntime implements RuntimeInterface
     }
 
     /**
-     * Wait for all coroutines to complete
-     *
-     * @return void
+     * 等待所有协程完成
      */
     public function wait(): void
     {
-        // In a pure Fiber implementation, we would need an event loop
-        // This is a simplified implementation for demonstration
         foreach (self::$fibers as $fiber) {
-            if ($fiber->isTerminated() === false) {
+            if (!$fiber->isTerminated()) {
                 try {
                     $fiber->resume();
-                } catch (\FiberError $e) {
-                    // Fiber is already suspended or terminated
+                } catch (\FiberError) {
                 }
             }
         }
