@@ -17,6 +17,7 @@ final class RuntimeAdapterFactory
     public const ENV_PROCESS = 'process';
     public const ENV_THREAD = 'thread';
     public const ENV_CLI = 'cli';
+    public const ENV_CONSOLE = 'console';
 
     /**
      * 根据当前环境创建运行时适配器
@@ -71,6 +72,9 @@ final class RuntimeAdapterFactory
                 ? new ThreadRuntime()
                 : throw new Exception\UnsupportedOperationException('pthreads 扩展不可用'),
             self::ENV_CLI => new CliRuntime(),
+            self::ENV_CONSOLE => class_exists(\Kode\Console\Output::class)
+                ? new ConsoleRuntime()
+                : throw new Exception\UnsupportedOperationException('kode/console 包不可用'),
             default => throw new Exception\UnsupportedOperationException(
                 "不支持的运行时环境: {$environment}"
             ),
