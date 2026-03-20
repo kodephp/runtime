@@ -9,6 +9,6 @@ namespace Kode\Runtime\Exception;
  *
  * Kode Runtime 包的基础异常类
  */
-final class RuntimeException extends \RuntimeException
+class RuntimeException extends \RuntimeException
 {
 }

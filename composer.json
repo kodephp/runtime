@@ -13,7 +13,7 @@
     ],
     "require": {
         "php": "^8.1",
-        "kode/context": "^1.0"
+        "kode/context": "^2.0"
     },
     "suggest": {
         "kode/console": "集成控制台输入输出功能和命令基类"
