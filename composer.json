@@ -1,8 +1,8 @@
 {
     "name": "kode/runtime",
-    "description": "现代 PHP 常驻内存应用的统一运行时抽象层",
-    "keywords": ["runtime", "swoole", "swow", "fiber", "coroutine", "async", "php"],
-    "version": "2.0.0",
+    "description": "现代 PHP 常驻内存应用的统一运行时抽象层 | 支持 Swoole、Swow、PHP Fiber、多进程、多线程、Console 及传统 CLI 模式，基于 PHP 8.1+ 新特性构建",
+    "keywords": ["runtime", "swoole", "swow", "fiber", "coroutine", "async", "php", "console"],
+    "version": "2.1.0",
     "type": "library",
     "license": "Apache-2.0",
     "authors": [
@@ -16,7 +16,7 @@
         "kode/context": "^1.0"
     },
     "suggest": {
-        "kode/console": "集成控制台输入输出功能"
+        "kode/console": "集成控制台输入输出功能和命令基类"
     },
     "require-dev": {
         "phpunit/phpunit": "^12.0",

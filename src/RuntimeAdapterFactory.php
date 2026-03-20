@@ -31,6 +31,10 @@ final class RuntimeAdapterFactory
             return self::createForEnvironment($environment);
         }
 
+        if (self::isConsoleAvailable()) {
+            return new ConsoleRuntime();
+        }
+
         if (extension_loaded('swoole')) {
             return new SwooleRuntime();
         }
@@ -72,7 +76,7 @@ final class RuntimeAdapterFactory
                 ? new ThreadRuntime()
                 : throw new Exception\UnsupportedOperationException('pthreads 扩展不可用'),
             self::ENV_CLI => new CliRuntime(),
-            self::ENV_CONSOLE => class_exists(\Kode\Console\Output::class)
+            self::ENV_CONSOLE => self::isConsoleAvailable()
                 ? new ConsoleRuntime()
                 : throw new Exception\UnsupportedOperationException('kode/console 包不可用'),
             default => throw new Exception\UnsupportedOperationException(
@@ -109,5 +113,15 @@ final class RuntimeAdapterFactory
     public static function isFiberSupported(): bool
     {
         return version_compare(PHP_VERSION, '8.1.0', '>=');
+    }
+
+    /**
+     * 检查 Console 是否可用
+     *
+     * @return bool 可用返回 true
+     */
+    public static function isConsoleAvailable(): bool
+    {
+        return class_exists(\Kode\Console\Output::class);
     }
 }
