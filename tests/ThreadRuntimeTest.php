@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Kode\Runtime\Tests;
 
-use Kode\Runtime\ThreadRuntime;
+use Kode\Runtime\Exception\UnsupportedOperationException;
 use Kode\Runtime\RuntimeAdapterFactory;
+use Kode\Runtime\RuntimeEnvironment;
+use Kode\Runtime\ThreadRuntime;
 use PHPUnit\Framework\TestCase;
 
 /**
- * ThreadRuntime 适配器测试
+ * ThreadRuntime 适配器测试（基于 ext-parallel）
  */
 final class ThreadRuntimeTest extends TestCase
 {
@@ -18,11 +20,12 @@ final class ThreadRuntimeTest extends TestCase
      */
     public function testThreadRuntimeCreation(): void
     {
-        if (!extension_loaded('pthreads')) {
-            $this->markTestSkipped('pthreads 扩展不可用');
+        if (!RuntimeEnvironment::Thread->isAvailable()) {
+            $this->markTestSkipped('parallel 扩展不可用');
         }
 
         $runtime = RuntimeAdapterFactory::createForEnvironment(RuntimeAdapterFactory::ENV_THREAD);
+
         $this->assertInstanceOf(ThreadRuntime::class, $runtime);
         $this->assertEquals('THREAD', $runtime->getName());
     }
@@ -32,19 +35,47 @@ final class ThreadRuntimeTest extends TestCase
      */
     public function testAsyncExecution(): void
     {
-        if (!extension_loaded('pthreads')) {
-            $this->markTestSkipped('pthreads 扩展不可用');
+        if (!RuntimeEnvironment::Thread->isAvailable()) {
+            $this->markTestSkipped('parallel 扩展不可用');
         }
 
         $runtime = new ThreadRuntime();
+        $future = $runtime->async(static fn (): string => 'done');
 
-        $thread = $runtime->async(function () {
-        });
+        $this->assertIsObject($future);
+        $runtime->wait();
+    }
 
-        $this->assertNotNull($thread);
-        $this->assertInstanceOf(\Thread::class, $thread);
+    /**
+     * 测试并发执行并收集结果
+     */
+    public function testParallelCollectsResults(): void
+    {
+        if (!RuntimeEnvironment::Thread->isAvailable()) {
+            $this->markTestSkipped('parallel 扩展不可用');
+        }
 
-        $thread->join();
+        $results = (new ThreadRuntime())->parallel([
+            'a' => static fn (): int => 1,
+            'b' => static fn (): int => 2,
+        ]);
+
+        $this->assertSame(['a' => 1, 'b' => 2], $results);
+    }
+
+    /**
+     * 测试扩展缺失时抛出明确异常
+     */
+    public function testThrowsWhenExtensionMissing(): void
+    {
+        if (RuntimeEnvironment::Thread->isAvailable()) {
+            $this->markTestSkipped('parallel 扩展已安装');
+        }
+
+        $this->expectException(UnsupportedOperationException::class);
+        $this->expectExceptionMessage('parallel 扩展不可用');
+
+        (new ThreadRuntime())->async(static fn (): int => 1);
     }
 
     /**
@@ -52,12 +83,9 @@ final class ThreadRuntimeTest extends TestCase
      */
     public function testChannelCreation(): void
     {
-        $runtime = new ThreadRuntime();
-        $channel = $runtime->createChannel(1);
+        $channel = (new ThreadRuntime())->createChannel(1);
 
-        $this->assertNotNull($channel);
-        $this->assertTrue(method_exists($channel, 'push'));
-        $this->assertTrue(method_exists($channel, 'pop'));
+        $this->assertEquals(1, $channel->getCapacity());
     }
 
     /**
@@ -66,8 +94,9 @@ final class ThreadRuntimeTest extends TestCase
     public function testSleep(): void
     {
         $runtime = new ThreadRuntime();
-
+        $start = microtime(true);
         $runtime->sleep(0.001);
-        $this->assertTrue(true);
+
+        $this->assertGreaterThanOrEqual(0.001, microtime(true) - $start);
     }
 }

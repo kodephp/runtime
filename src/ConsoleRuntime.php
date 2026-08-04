@@ -7,82 +7,94 @@ namespace Kode\Runtime;
 /**
  * Console 运行时适配器
  *
- * 基于 kode/console 包实现的运行时，集成控制台输入输出功能
+ * 装饰器实现：并发能力完全委托给当前环境下最佳的运行时
+ * （Swoole / Swow / Fiber / CLI），自身仅叠加 kode/console 的输出能力。
+ *
+ * v3.0 起 Console 不再抢占自动探测结果，因此在命令行程序中使用控制台输出
+ * 不会再导致协程能力被降级为同步执行
  */
 final class ConsoleRuntime implements RuntimeInterface
 {
-    private static array $deferCallbacks = [];
     private static ?\Kode\Console\Output $output = null;
 
+    private readonly RuntimeInterface $inner;
+
     /**
-     * 获取运行时环境名称
-     *
-     * @return string 环境名称
+     * @param RuntimeInterface|null $inner 被装饰的运行时，默认自动探测
      */
+    public function __construct(?RuntimeInterface $inner = null)
+    {
+        $this->inner = $inner ?? RuntimeAdapterFactory::createConcurrent();
+    }
+
+    /**
+     * 获取被装饰的底层运行时
+     *
+     * @return RuntimeInterface 底层运行时
+     */
+    public function innerRuntime(): RuntimeInterface
+    {
+        return $this->inner;
+    }
+
+    #[\Override]
     public function getName(): string
     {
-        return 'CONSOLE';
+        return RuntimeEnvironment::Console->label();
     }
 
-    /**
-     * 异步执行函数
-     *
-     * @param callable $callback 要执行的函数
-     * @return mixed 函数返回值
-     */
+    #[\Override]
+    public function environment(): RuntimeEnvironment
+    {
+        return RuntimeEnvironment::Console;
+    }
+
+    #[\Override]
+    public function supportsConcurrency(): bool
+    {
+        return $this->inner->supportsConcurrency();
+    }
+
+    #[\Override]
     public function async(callable $callback): mixed
     {
-        try {
-            return $callback();
-        } finally {
-            foreach (array_reverse(self::$deferCallbacks) as $deferCallback) {
-                try {
-                    $deferCallback();
-                } catch (\Throwable) {
-                }
-            }
-            self::$deferCallbacks = [];
-        }
+        return $this->inner->async($callback);
     }
 
-    /**
-     * 休眠指定秒数
-     *
-     * @param float $seconds 休眠秒数
-     */
+    #[\Override]
+    public function run(callable $main): mixed
+    {
+        return $this->inner->run($main);
+    }
+
+    #[\Override]
+    public function parallel(iterable $tasks): array
+    {
+        return $this->inner->parallel($tasks);
+    }
+
+    #[\Override]
     public function sleep(float $seconds): void
     {
-        if ($seconds > 0) {
-            usleep((int)($seconds * 1_000_000));
-        }
+        $this->inner->sleep($seconds);
     }
 
-    /**
-     * 创建一个通道
-     *
-     * @param int $capacity 通道容量
-     * @return ChannelInterface 通道实例
-     */
+    #[\Override]
     public function createChannel(int $capacity = 0): ChannelInterface
     {
-        return new ConsoleChannel($capacity);
+        return $this->inner->createChannel($capacity);
     }
 
-    /**
-     * 注册当前上下文退出时执行的回调
-     *
-     * @param callable $callback 清理函数
-     */
+    #[\Override]
     public function defer(callable $callback): void
     {
-        self::$deferCallbacks[] = $callback;
+        $this->inner->defer($callback);
     }
 
-    /**
-     * 等待所有协程完成
-     */
+    #[\Override]
     public function wait(): void
     {
+        $this->inner->wait();
     }
 
     /**
@@ -137,19 +149,6 @@ final class ConsoleRuntime implements RuntimeInterface
     }
 
     /**
-     * 获取输出器实例
-     *
-     * @return \Kode\Console\Output
-     */
-    private static function getOutput(): \Kode\Console\Output
-    {
-        if (self::$output === null) {
-            self::$output = new \Kode\Console\Output();
-        }
-        return self::$output;
-    }
-
-    /**
      * 设置输出器实例
      *
      * @param \Kode\Console\Output $output 输出器
@@ -157,5 +156,26 @@ final class ConsoleRuntime implements RuntimeInterface
     public static function setOutput(\Kode\Console\Output $output): void
     {
         self::$output = $output;
+    }
+
+    /**
+     * 获取输出器实例
+     *
+     * @return \Kode\Console\Output 输出器
+     * @throws Exception\UnsupportedOperationException kode/console 未安装时抛出
+     */
+    private static function getOutput(): \Kode\Console\Output
+    {
+        if (self::$output === null) {
+            if (!RuntimeEnvironment::Console->isAvailable()) {
+                throw new Exception\UnsupportedOperationException(
+                    RuntimeEnvironment::Console->unavailableMessage()
+                );
+            }
+
+            self::$output = new \Kode\Console\Output();
+        }
+
+        return self::$output;
     }
 }

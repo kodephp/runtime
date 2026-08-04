@@ -28,7 +28,20 @@ final class ChannelTest extends TestCase
     public function testUnlimitedChannel(): void
     {
         $channel = new CliChannel(0);
+
         $this->assertEquals(0, $channel->getCapacity());
+        $this->assertFalse($channel->isFull());
+    }
+
+    /**
+     * 测试负容量归一化为无限制
+     */
+    public function testNegativeCapacityIsNormalized(): void
+    {
+        $channel = new CliChannel(-5);
+
+        $this->assertEquals(0, $channel->getCapacity());
+        $this->assertFalse($channel->isFull());
     }
 
     /**
@@ -51,22 +64,26 @@ final class ChannelTest extends TestCase
 
         $this->assertTrue($channel->push('first'));
         $this->assertFalse($channel->push('second'));
+        $this->assertTrue($channel->isFull());
     }
 
     /**
-     * 测试通道长度
+     * 测试通道长度与空判断
      */
-    public function testGetLength(): void
+    public function testGetLengthAndIsEmpty(): void
     {
         $channel = new CliChannel(2);
 
         $this->assertEquals(0, $channel->getLength());
+        $this->assertTrue($channel->isEmpty());
 
         $channel->push('a');
         $this->assertEquals(1, $channel->getLength());
+        $this->assertFalse($channel->isEmpty());
 
         $channel->push('b');
         $this->assertEquals(2, $channel->getLength());
+        $this->assertTrue($channel->isFull());
     }
 
     /**
@@ -92,6 +109,47 @@ final class ChannelTest extends TestCase
         $channel = new CliChannel(1);
 
         $this->assertNull($channel->pop());
+    }
+
+    /**
+     * 测试零超时立即返回
+     */
+    public function testZeroTimeoutReturnsImmediately(): void
+    {
+        $channel = new CliChannel(1);
+
+        $start = microtime(true);
+        $this->assertNull($channel->pop(ChannelInterface::TIMEOUT_NONE));
+        $this->assertLessThan(0.05, microtime(true) - $start);
+        $this->assertTrue($channel->isTimeout());
+    }
+
+    /**
+     * 测试超时标记在成功操作后被重置
+     */
+    public function testTimeoutFlagIsResetOnSuccess(): void
+    {
+        $channel = new CliChannel(1);
+
+        $channel->pop(ChannelInterface::TIMEOUT_NONE);
+        $this->assertTrue($channel->isTimeout());
+
+        $channel->push('value');
+        $this->assertFalse($channel->isTimeout());
+        $this->assertEquals('value', $channel->pop());
+        $this->assertFalse($channel->isTimeout());
+    }
+
+    /**
+     * 测试同步环境下满通道的超时等待
+     */
+    public function testPushTimeoutOnFullChannel(): void
+    {
+        $channel = new CliChannel(1);
+        $channel->push('first');
+
+        $this->assertFalse($channel->push('second', 0.05));
+        $this->assertTrue($channel->isTimeout());
     }
 
     /**

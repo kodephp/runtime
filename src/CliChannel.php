@@ -5,96 +5,179 @@ declare(strict_types=1);
 namespace Kode\Runtime;
 
 /**
- * CLI 通道实现
+ * 内存队列通道
  *
- * 基于 SplQueue 实现的同步通道，用于 CLI 模式和 Fiber 模式
+ * 基于 SplQueue 实现，供 CLI、Fiber、Process、Thread、Console 环境共用。
+ * 在 Fiber 调度器中运行时，push/pop 会让出执行权实现真正的阻塞等待；
+ * 在无调度器的同步环境中退化为非阻塞操作，避免自我死锁
  */
 final class CliChannel implements ChannelInterface
 {
+    /**
+     * 同步环境下轮询的间隔（微秒）
+     */
+    private const int POLL_INTERVAL_US = 200;
+
+    /**
+     * @var \SplQueue<mixed>
+     */
     private readonly \SplQueue $queue;
+
     private readonly int $capacity;
+
+    private readonly FiberScheduler $scheduler;
+
     private bool $closed = false;
 
-    /**
-     * 创建新的 CLI 通道
-     *
-     * @param int $capacity 通道容量，0 表示无限制
-     */
-    public function __construct(int $capacity = 0)
-    {
-        $this->queue = new \SplQueue();
-        $this->capacity = $capacity > 0 ? $capacity : 0;
-    }
+    private bool $timedOut = false;
 
     /**
-     * 向通道推送数据
+     * 创建新的内存通道
      *
-     * @param mixed $data 要推送的数据
-     * @return bool 推送成功返回 true，失败返回 false
+     * @param int $capacity 通道容量，0 表示无限制
+     * @param FiberScheduler|null $scheduler 阻塞等待时驱动的调度器，默认使用全局实例
      */
-    public function push(mixed $data): bool
+    public function __construct(int $capacity = 0, ?FiberScheduler $scheduler = null)
     {
+        $this->queue = new \SplQueue();
+        $this->capacity = max(0, $capacity);
+        $this->scheduler = $scheduler ?? FiberScheduler::instance();
+    }
+
+    #[\Override]
+    public function push(mixed $data, float $timeout = self::TIMEOUT_FOREVER): bool
+    {
+        $this->timedOut = false;
+
         if ($this->closed) {
             return false;
         }
 
-        if ($this->capacity > 0 && $this->queue->count() >= $this->capacity) {
+        if ($this->isFull() && !$this->await(fn (): bool => !$this->isFull(), $timeout)) {
+            return false;
+        }
+
+        if ($this->closed) {
             return false;
         }
 
         $this->queue->enqueue($data);
+
         return true;
     }
 
-    /**
-     * 从通道弹出数据
-     *
-     * @return mixed 通道中的数据，如果通道为空或已关闭则返回 null
-     */
-    public function pop(): mixed
+    #[\Override]
+    public function pop(float $timeout = self::TIMEOUT_FOREVER): mixed
     {
-        if ($this->queue->isEmpty() || $this->closed) {
+        $this->timedOut = false;
+
+        if ($this->closed) {
+            return null;
+        }
+
+        if ($this->queue->isEmpty() && !$this->await(fn (): bool => !$this->queue->isEmpty(), $timeout)) {
+            return null;
+        }
+
+        if ($this->queue->isEmpty()) {
             return null;
         }
 
         return $this->queue->dequeue();
     }
 
-    /**
-     * 获取通道容量
-     *
-     * @return int 通道容量
-     */
+    #[\Override]
     public function getCapacity(): int
     {
         return $this->capacity;
     }
 
-    /**
-     * 获取通道当前长度
-     *
-     * @return int 当前长度
-     */
+    #[\Override]
     public function getLength(): int
     {
         return $this->queue->count();
     }
 
-    /**
-     * 关闭通道
-     */
+    #[\Override]
+    public function isEmpty(): bool
+    {
+        return $this->queue->isEmpty();
+    }
+
+    #[\Override]
+    public function isFull(): bool
+    {
+        return $this->capacity > 0 && $this->queue->count() >= $this->capacity;
+    }
+
+    #[\Override]
+    public function isTimeout(): bool
+    {
+        return $this->timedOut;
+    }
+
+    #[\Override]
     public function close(): void
     {
         $this->closed = true;
     }
 
-    /**
-     * 检查通道是否已关闭
-     *
-     * @return bool 已关闭返回 true，否则返回 false
-     */
+    #[\Override]
     public function isClosed(): bool
     {
         return $this->closed;
+    }
+
+    /**
+     * 等待条件成立
+     *
+     * @param callable(): bool $condition 条件判定
+     * @param float $timeout 等待秒数，-1 表示一直等待，0 表示不等待
+     * @return bool 条件成立返回 true，超时或无法等待返回 false
+     */
+    private function await(callable $condition, float $timeout): bool
+    {
+        if ($timeout === self::TIMEOUT_NONE) {
+            $this->timedOut = true;
+            return false;
+        }
+
+        $scheduler = $this->scheduler;
+        $inFiber = $scheduler->inFiber();
+
+        // 同步环境且无其他协程可推进条件时，继续等待只会死锁
+        if (!$inFiber && !$scheduler->hasPendingWork()) {
+            $this->timedOut = true;
+            return false;
+        }
+
+        $deadline = $timeout > 0 ? microtime(true) + $timeout : null;
+
+        while (!$condition()) {
+            if ($this->closed) {
+                return false;
+            }
+
+            if ($deadline !== null && microtime(true) >= $deadline) {
+                $this->timedOut = true;
+                return false;
+            }
+
+            if ($inFiber) {
+                if (!$scheduler->hasOtherWork()) {
+                    $this->timedOut = true;
+                    return false;
+                }
+                $scheduler->yield();
+                continue;
+            }
+
+            if (!$scheduler->tick()) {
+                $this->timedOut = true;
+                return false;
+            }
+        }
+
+        return true;
     }
 }

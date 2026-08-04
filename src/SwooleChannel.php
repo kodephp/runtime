@@ -7,7 +7,7 @@ namespace Kode\Runtime;
 /**
  * Swoole 通道实现
  *
- * 基于 Swoole\Coroutine\Channel 实现的通道
+ * 基于 Swoole\Coroutine\Channel 实现，支持协程安全的超时读写
  */
 final class SwooleChannel implements ChannelInterface
 {
@@ -20,69 +20,62 @@ final class SwooleChannel implements ChannelInterface
      */
     public function __construct(int $capacity = 0)
     {
-        $this->channel = new \Swoole\Coroutine\Channel($capacity);
+        $this->channel = new \Swoole\Coroutine\Channel(max(0, $capacity));
     }
 
-    /**
-     * 向通道推送数据
-     *
-     * @param mixed $data 要推送的数据
-     * @return bool 推送成功返回 true，失败返回 false
-     */
-    public function push(mixed $data): bool
+    #[\Override]
+    public function push(mixed $data, float $timeout = self::TIMEOUT_FOREVER): bool
     {
-        return $this->channel->push($data);
+        return $this->channel->push($data, $timeout);
     }
 
-    /**
-     * 从通道弹出数据
-     *
-     * @return mixed 通道中的数据
-     */
-    public function pop(): mixed
+    #[\Override]
+    public function pop(float $timeout = self::TIMEOUT_FOREVER): mixed
     {
-        return $this->channel->pop();
+        $data = $this->channel->pop($timeout);
+
+        return $data === false && $this->channel->errCode !== SWOOLE_CHANNEL_OK ? null : $data;
     }
 
-    /**
-     * 获取通道容量
-     *
-     * @return int 通道容量
-     */
+    #[\Override]
     public function getCapacity(): int
     {
         return $this->channel->capacity;
     }
 
-    /**
-     * 获取通道当前长度
-     *
-     * @return int 当前长度
-     */
+    #[\Override]
     public function getLength(): int
     {
         return $this->channel->length();
     }
 
-    /**
-     * 关闭通道
-     */
+    #[\Override]
+    public function isEmpty(): bool
+    {
+        return $this->channel->isEmpty();
+    }
+
+    #[\Override]
+    public function isFull(): bool
+    {
+        return $this->channel->isFull();
+    }
+
+    #[\Override]
+    public function isTimeout(): bool
+    {
+        return $this->channel->errCode === SWOOLE_CHANNEL_TIMEOUT;
+    }
+
+    #[\Override]
     public function close(): void
     {
         $this->channel->close();
     }
 
-    /**
-     * 检查通道是否已关闭
-     *
-     * @return bool 已关闭返回 true，否则返回 false
-     */
+    #[\Override]
     public function isClosed(): bool
     {
-        try {
-            return $this->channel->errCode === SWOOLE_CHANNEL_CLOSED;
-        } catch (\Error) {
-            return true;
-        }
+        return $this->channel->errCode === SWOOLE_CHANNEL_CLOSED;
     }
 }

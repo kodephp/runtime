@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Kode\Runtime\Tests;
 
+use Kode\Runtime\CliRuntime;
+use Kode\Runtime\FiberRuntime;
 use Kode\Runtime\RuntimeAdapterFactory;
+use Kode\Runtime\RuntimeEnvironment;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -18,6 +21,8 @@ final class RuntimeAdapterFactoryTest extends TestCase
     public function testCreateCliAdapter(): void
     {
         $adapter = RuntimeAdapterFactory::createForEnvironment(RuntimeAdapterFactory::ENV_CLI);
+
+        $this->assertInstanceOf(CliRuntime::class, $adapter);
         $this->assertEquals('CLI', $adapter->getName());
     }
 
@@ -27,48 +32,78 @@ final class RuntimeAdapterFactoryTest extends TestCase
     public function testCreateFiberAdapter(): void
     {
         $adapter = RuntimeAdapterFactory::createForEnvironment(RuntimeAdapterFactory::ENV_FIBER);
+
+        $this->assertInstanceOf(FiberRuntime::class, $adapter);
         $this->assertEquals('FIBER', $adapter->getName());
     }
 
     /**
-     * 测试检测 Swoole 可用性
+     * 测试使用枚举创建适配器
      */
-    public function testIsSwooleAvailable(): void
+    public function testCreateWithEnum(): void
     {
-        $result = RuntimeAdapterFactory::isSwooleAvailable();
-        $this->assertIsBool($result);
+        $adapter = RuntimeAdapterFactory::createForEnvironment(RuntimeEnvironment::Cli);
+
+        $this->assertSame(RuntimeEnvironment::Cli, $adapter->environment());
     }
 
     /**
-     * 测试检测 Swow 可用性
+     * 测试自动探测优先返回并发运行时
      */
-    public function testIsSwowAvailable(): void
+    public function testCreateConcurrentPrefersCoroutine(): void
     {
-        $result = RuntimeAdapterFactory::isSwowAvailable();
-        $this->assertIsBool($result);
+        $adapter = RuntimeAdapterFactory::createConcurrent();
+
+        $this->assertNotSame(RuntimeEnvironment::Console, $adapter->environment());
+        $this->assertTrue($adapter->environment()->isAvailable());
     }
 
     /**
-     * 测试检测 Fiber 支持
+     * 测试环境名大小写不敏感
      */
-    public function testIsFiberSupported(): void
+    public function testEnvironmentNameIsCaseInsensitive(): void
     {
-        $result = RuntimeAdapterFactory::isFiberSupported();
-        $this->assertTrue($result);
+        $adapter = RuntimeAdapterFactory::createForEnvironment(' CLI ');
+
+        $this->assertEquals('CLI', $adapter->getName());
     }
 
     /**
-     * 测试环境常量
+     * 测试可用性检测
+     */
+    public function testAvailabilityChecks(): void
+    {
+        $this->assertIsBool(RuntimeAdapterFactory::isSwooleAvailable());
+        $this->assertIsBool(RuntimeAdapterFactory::isSwowAvailable());
+        $this->assertIsBool(RuntimeAdapterFactory::isConsoleAvailable());
+        $this->assertTrue(RuntimeAdapterFactory::isFiberSupported());
+        $this->assertTrue(RuntimeAdapterFactory::isAvailable('cli'));
+    }
+
+    /**
+     * 测试可用环境列表
+     */
+    public function testAvailableEnvironments(): void
+    {
+        $environments = RuntimeAdapterFactory::availableEnvironments();
+
+        $this->assertNotEmpty($environments);
+        $this->assertContains(RuntimeEnvironment::Cli, $environments);
+        $this->assertContains(RuntimeEnvironment::Fiber, $environments);
+    }
+
+    /**
+     * 测试环境常量与枚举保持一致
      */
     public function testEnvironmentConstants(): void
     {
-        $this->assertEquals('swoole', RuntimeAdapterFactory::ENV_SWOOLE);
-        $this->assertEquals('swow', RuntimeAdapterFactory::ENV_SWOW);
-        $this->assertEquals('fiber', RuntimeAdapterFactory::ENV_FIBER);
-        $this->assertEquals('process', RuntimeAdapterFactory::ENV_PROCESS);
-        $this->assertEquals('thread', RuntimeAdapterFactory::ENV_THREAD);
-        $this->assertEquals('cli', RuntimeAdapterFactory::ENV_CLI);
-        $this->assertEquals('console', RuntimeAdapterFactory::ENV_CONSOLE);
+        $this->assertEquals(RuntimeEnvironment::Swoole->value, RuntimeAdapterFactory::ENV_SWOOLE);
+        $this->assertEquals(RuntimeEnvironment::Swow->value, RuntimeAdapterFactory::ENV_SWOW);
+        $this->assertEquals(RuntimeEnvironment::Fiber->value, RuntimeAdapterFactory::ENV_FIBER);
+        $this->assertEquals(RuntimeEnvironment::Process->value, RuntimeAdapterFactory::ENV_PROCESS);
+        $this->assertEquals(RuntimeEnvironment::Thread->value, RuntimeAdapterFactory::ENV_THREAD);
+        $this->assertEquals(RuntimeEnvironment::Cli->value, RuntimeAdapterFactory::ENV_CLI);
+        $this->assertEquals(RuntimeEnvironment::Console->value, RuntimeAdapterFactory::ENV_CONSOLE);
     }
 
     /**
@@ -77,6 +112,22 @@ final class RuntimeAdapterFactoryTest extends TestCase
     public function testUnsupportedEnvironment(): void
     {
         $this->expectException(\Kode\Runtime\Exception\UnsupportedOperationException::class);
+
         RuntimeAdapterFactory::createForEnvironment('unsupported');
+    }
+
+    /**
+     * 测试环境合法但扩展缺失时抛出明确异常
+     */
+    public function testUnavailableEnvironmentThrows(): void
+    {
+        if (RuntimeEnvironment::Swoole->isAvailable()) {
+            $this->markTestSkipped('Swoole 扩展已安装');
+        }
+
+        $this->expectException(\Kode\Runtime\Exception\UnsupportedOperationException::class);
+        $this->expectExceptionMessage('Swoole 扩展不可用');
+
+        RuntimeAdapterFactory::createForEnvironment(RuntimeEnvironment::Swoole);
     }
 }

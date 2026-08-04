@@ -11,78 +11,87 @@ namespace Kode\Runtime;
  */
 final class RuntimeAdapterFactory
 {
-    public const ENV_SWOOLE = 'swoole';
-    public const ENV_SWOW = 'swow';
-    public const ENV_FIBER = 'fiber';
-    public const ENV_PROCESS = 'process';
-    public const ENV_THREAD = 'thread';
-    public const ENV_CLI = 'cli';
-    public const ENV_CONSOLE = 'console';
+    public const string ENV_SWOOLE = 'swoole';
+    public const string ENV_SWOW = 'swow';
+    public const string ENV_FIBER = 'fiber';
+    public const string ENV_PROCESS = 'process';
+    public const string ENV_THREAD = 'thread';
+    public const string ENV_CLI = 'cli';
+    public const string ENV_CONSOLE = 'console';
 
     /**
      * 根据当前环境创建运行时适配器
      *
-     * @param string|null $environment 可选的环境名称，用于强制指定
+     * 自动探测顺序：Swoole → Swow → Fiber → CLI。
+     * Console 属于输出增强而非并发模型，需显式指定
+     *
+     * @param RuntimeEnvironment|string|null $environment 可选的环境，用于强制指定
      * @return RuntimeInterface 适配器实例
      */
-    public static function create(?string $environment = null): RuntimeInterface
+    public static function create(RuntimeEnvironment|string|null $environment = null): RuntimeInterface
     {
         if ($environment !== null) {
             return self::createForEnvironment($environment);
         }
 
-        if (self::isConsoleAvailable()) {
-            return new ConsoleRuntime();
-        }
+        return self::createConcurrent();
+    }
 
-        if (extension_loaded('swoole')) {
-            return new SwooleRuntime();
-        }
-
-        if (extension_loaded('swow')) {
-            return new SwowRuntime();
-        }
-
-        if (class_exists(\Fiber::class)) {
-            return new FiberRuntime();
-        }
-
-        return new CliRuntime();
+    /**
+     * 创建当前环境下并发能力最强的运行时适配器
+     *
+     * @return RuntimeInterface 适配器实例
+     */
+    public static function createConcurrent(): RuntimeInterface
+    {
+        return self::createForEnvironment(RuntimeEnvironment::detect());
     }
 
     /**
      * 为指定环境创建运行时适配器
      *
-     * @param string $environment 环境名称
+     * @param RuntimeEnvironment|string $environment 环境
      * @return RuntimeInterface 适配器实例
-     * @throws Exception\UnsupportedOperationException 如果环境不支持
+     * @throws Exception\UnsupportedOperationException 环境非法或不可用时抛出
      */
-    public static function createForEnvironment(string $environment): RuntimeInterface
+    public static function createForEnvironment(RuntimeEnvironment|string $environment): RuntimeInterface
     {
-        return match ($environment) {
-            self::ENV_SWOOLE => extension_loaded('swoole')
-                ? new SwooleRuntime()
-                : throw new Exception\UnsupportedOperationException('Swoole 扩展不可用'),
-            self::ENV_SWOW => extension_loaded('swow')
-                ? new SwowRuntime()
-                : throw new Exception\UnsupportedOperationException('Swow 扩展不可用'),
-            self::ENV_FIBER => class_exists(\Fiber::class)
-                ? new FiberRuntime()
-                : throw new Exception\UnsupportedOperationException('当前 PHP 版本不支持 Fiber'),
-            self::ENV_PROCESS => function_exists('pcntl_fork')
-                ? new ProcessRuntime()
-                : throw new Exception\UnsupportedOperationException('PCNTL 扩展不可用'),
-            self::ENV_THREAD => extension_loaded('pthreads')
-                ? new ThreadRuntime()
-                : throw new Exception\UnsupportedOperationException('pthreads 扩展不可用'),
-            self::ENV_CLI => new CliRuntime(),
-            self::ENV_CONSOLE => self::isConsoleAvailable()
-                ? new ConsoleRuntime()
-                : throw new Exception\UnsupportedOperationException('kode/console 包不可用'),
-            default => throw new Exception\UnsupportedOperationException(
-                "不支持的运行时环境: {$environment}"
-            ),
+        $env = RuntimeEnvironment::resolve($environment);
+
+        if (!$env->isAvailable()) {
+            throw new Exception\UnsupportedOperationException($env->unavailableMessage());
+        }
+
+        return match ($env) {
+            RuntimeEnvironment::Swoole => new SwooleRuntime(),
+            RuntimeEnvironment::Swow => new SwowRuntime(),
+            RuntimeEnvironment::Fiber => new FiberRuntime(),
+            RuntimeEnvironment::Process => new ProcessRuntime(),
+            RuntimeEnvironment::Thread => new ThreadRuntime(),
+            RuntimeEnvironment::Console => new ConsoleRuntime(),
+            RuntimeEnvironment::Cli => new CliRuntime(),
         };
+    }
+
+    /**
+     * 获取当前所有可用环境
+     *
+     * @return list<RuntimeEnvironment> 可用环境列表
+     */
+    public static function availableEnvironments(): array
+    {
+        return RuntimeEnvironment::available();
+    }
+
+    /**
+     * 检查指定环境是否可用
+     *
+     * @param RuntimeEnvironment|string $environment 环境
+     * @return bool 可用返回 true
+     */
+    public static function isAvailable(RuntimeEnvironment|string $environment): bool
+    {
+        return RuntimeEnvironment::resolve($environment)->isAvailable();
     }
 
     /**
@@ -92,7 +101,7 @@ final class RuntimeAdapterFactory
      */
     public static function isSwooleAvailable(): bool
     {
-        return extension_loaded('swoole') && defined('SWOOLE_VERSION');
+        return RuntimeEnvironment::Swoole->isAvailable();
     }
 
     /**
@@ -102,7 +111,7 @@ final class RuntimeAdapterFactory
      */
     public static function isSwowAvailable(): bool
     {
-        return extension_loaded('swow');
+        return RuntimeEnvironment::Swow->isAvailable();
     }
 
     /**
@@ -112,7 +121,7 @@ final class RuntimeAdapterFactory
      */
     public static function isFiberSupported(): bool
     {
-        return version_compare(PHP_VERSION, '8.1.0', '>=');
+        return RuntimeEnvironment::Fiber->isAvailable();
     }
 
     /**
@@ -122,6 +131,6 @@ final class RuntimeAdapterFactory
      */
     public static function isConsoleAvailable(): bool
     {
-        return class_exists(\Kode\Console\Output::class);
+        return RuntimeEnvironment::Console->isAvailable();
     }
 }

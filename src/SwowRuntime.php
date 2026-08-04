@@ -7,71 +7,135 @@ namespace Kode\Runtime;
 /**
  * Swow 运行时适配器
  *
- * 基于 Swow 协程引擎实现的运行时
+ * 基于 Swow 协程引擎实现的运行时。
+ * Swow 已在扩展层 hook 了 sleep / usleep 等阻塞函数，因此可直接使用标准函数休眠
  */
-final class SwowRuntime implements RuntimeInterface
+final class SwowRuntime extends AbstractRuntime
 {
     /**
-     * 获取运行时环境名称
+     * 已创建的协程
      *
-     * @return string 环境名称
+     * @var list<\Swow\Coroutine>
      */
-    public function getName(): string
+    private array $coroutines = [];
+
+    #[\Override]
+    public function environment(): RuntimeEnvironment
     {
-        return 'SWOW';
+        return RuntimeEnvironment::Swow;
     }
 
     /**
-     * 异步执行协程
+     * 启动协程
      *
      * @param callable $callback 协程函数
      * @return \Swow\Coroutine 协程实例
      */
+    #[\Override]
     public function async(callable $callback): \Swow\Coroutine
     {
-        return \Swow\Coroutine::run($callback);
+        $coroutine = \Swow\Coroutine::run($callback);
+        $this->coroutines[] = $coroutine;
+
+        return $coroutine;
     }
 
     /**
-     * 休眠指定秒数
+     * 休眠指定秒数（Swow 已 hook usleep，协程内不会阻塞线程）
      *
      * @param float $seconds 休眠秒数
      */
+    #[\Override]
     public function sleep(float $seconds): void
     {
-        \Swow\Coroutine::sleep((int)($seconds * 1000));
+        if ($seconds > 0) {
+            usleep((int) round($seconds * 1_000_000));
+        }
     }
 
-    /**
-     * 创建一个通道
-     *
-     * @param int $capacity 通道容量
-     * @return ChannelInterface 通道实例
-     */
+    #[\Override]
     public function createChannel(int $capacity = 0): ChannelInterface
     {
         return new SwowChannel($capacity);
     }
 
     /**
-     * 注册当前协程退出时执行的回调
+     * 并发执行任务并收集结果
      *
-     * @param callable $callback 清理函数
+     * @param iterable<array-key, callable> $tasks 任务列表
+     * @return array<array-key, mixed> 与任务键一一对应的结果
      */
-    public function defer(callable $callback): void
+    #[\Override]
+    public function parallel(iterable $tasks): array
     {
-        $coroutine = \Swow\Coroutine::getCurrent();
-        if ($coroutine !== null) {
-            $coroutine->addOnCloseCallback($callback);
+        $results = [];
+        $spawned = [];
+
+        foreach ($tasks as $key => $task) {
+            $results[$key] = null;
+            $spawned[] = \Swow\Coroutine::run(static function () use ($task, $key, &$results): void {
+                $results[$key] = $task();
+            });
         }
+
+        $this->join($spawned);
+
+        return $results;
     }
 
     /**
-     * 等待所有协程完成
+     * 注册协程关闭回调
+     *
+     * @param callable $callback 清理函数
      */
+    #[\Override]
+    public function defer(callable $callback): void
+    {
+        $coroutine = \Swow\Coroutine::getCurrent();
+
+        if ($coroutine !== \Swow\Coroutine::getMain()) {
+            $coroutine->addOnCloseCallback($callback);
+            return;
+        }
+
+        parent::defer($callback);
+    }
+
+    /**
+     * 等待所有由本适配器创建的协程结束
+     */
+    #[\Override]
     public function wait(): void
     {
-        while (\Swow\Coroutine::count() > 1) {
+        $coroutines = $this->coroutines;
+        $this->coroutines = [];
+
+        $this->join($coroutines);
+
+        parent::wait();
+    }
+
+    /**
+     * 等待指定协程全部结束
+     *
+     * @param list<\Swow\Coroutine> $coroutines 协程列表
+     */
+    private function join(array $coroutines): void
+    {
+        while (true) {
+            $running = false;
+
+            foreach ($coroutines as $coroutine) {
+                if ($coroutine->isAvailable()) {
+                    $running = true;
+                    break;
+                }
+            }
+
+            if (!$running) {
+                return;
+            }
+
             \Swow\Coroutine::yield();
         }
     }

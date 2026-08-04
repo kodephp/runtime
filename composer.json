@@ -1,8 +1,8 @@
 {
     "name": "kode/runtime",
-    "description": "现代 PHP 常驻内存应用的统一运行时抽象层 | 支持 Swoole、Swow、PHP Fiber、多进程、多线程、Console 及传统 CLI 模式，基于 PHP 8.1+ 新特性构建",
-    "keywords": ["runtime", "swoole", "swow", "fiber", "coroutine", "async", "php", "console"],
-    "version": "2.1.0",
+    "description": "现代 PHP 常驻内存应用的统一运行时抽象层 | 支持 Swoole、Swow、PHP Fiber、多进程、多线程、Console 及传统 CLI 模式，基于 PHP 8.3+ 新特性构建",
+    "keywords": ["runtime", "swoole", "swow", "fiber", "coroutine", "async", "parallel", "php", "console"],
+    "version": "3.0.0",
     "type": "library",
     "license": "Apache-2.0",
     "authors": [
@@ -12,10 +12,14 @@
         }
     ],
     "require": {
-        "php": "^8.1",
-        "kode/context": "^2.0"
+        "php": "^8.3",
+        "kode/context": "^2.1"
     },
     "suggest": {
+        "ext-swoole": "使用 Swoole 协程引擎（4.8+）",
+        "ext-swow": "使用 Swow 协程引擎（1.5+）",
+        "ext-pcntl": "启用多进程运行时",
+        "ext-parallel": "启用多线程运行时（需 ZTS 版本 PHP）",
         "kode/console": "集成控制台输入输出功能和命令基类"
     },
     "require-dev": {
@@ -25,7 +29,10 @@
     "autoload": {
         "psr-4": {
             "Kode\\Runtime\\": "src/"
-        }
+        },
+        "files": [
+            "src/functions.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {
@@ -39,7 +46,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "2.1-dev"
+            "dev-main": "3.0-dev"
         }
     },
     "config": {

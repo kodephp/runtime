@@ -53,6 +53,28 @@ abstract class RuntimeCommand extends Command
     }
 
     /**
+     * 并发执行多个任务并按原始键收集结果
+     *
+     * @param iterable<array-key, callable> $tasks 任务列表
+     * @return array<array-key, mixed> 执行结果
+     */
+    protected function parallel(iterable $tasks): array
+    {
+        return Runtime::parallel($tasks);
+    }
+
+    /**
+     * 以入口函数方式运行并等待全部异步任务结束
+     *
+     * @param callable $main 入口函数
+     * @return mixed 入口函数返回值
+     */
+    protected function runAsync(callable $main): mixed
+    {
+        return Runtime::run($main);
+    }
+
+    /**
      * 休眠指定秒数
      *
      * @param float $seconds 休眠秒数
@@ -113,13 +135,33 @@ abstract class RuntimeCommand extends Command
     }
 
     /**
+     * 获取当前运行时环境枚举
+     *
+     * @return RuntimeEnvironment 环境枚举
+     */
+    protected function getRuntimeEnvironment(): RuntimeEnvironment
+    {
+        return Runtime::environment();
+    }
+
+    /**
      * 检查是否在 Console 环境
      *
      * @return bool 是返回 true
      */
     protected function isConsoleRuntime(): bool
     {
-        return $this->getRuntimeName() === 'CONSOLE';
+        return Runtime::environment() === RuntimeEnvironment::Console;
+    }
+
+    /**
+     * 检查当前运行时是否具备真正的并发能力
+     *
+     * @return bool 具备返回 true
+     */
+    protected function supportsConcurrency(): bool
+    {
+        return Runtime::supportsConcurrency();
     }
 
     /**

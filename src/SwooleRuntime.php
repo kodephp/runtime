@@ -9,64 +9,119 @@ namespace Kode\Runtime;
  *
  * 基于 Swoole 协程引擎实现的运行时
  */
-final class SwooleRuntime implements RuntimeInterface
+final class SwooleRuntime extends AbstractRuntime
 {
-    /**
-     * 获取运行时环境名称
-     *
-     * @return string 环境名称
-     */
-    public function getName(): string
+    #[\Override]
+    public function environment(): RuntimeEnvironment
     {
-        return 'SWOOLE';
+        return RuntimeEnvironment::Swoole;
     }
 
     /**
-     * 异步执行协程
+     * 启动协程
      *
      * @param callable $callback 协程函数
      * @return int 协程 ID
      */
+    #[\Override]
     public function async(callable $callback): int
     {
         return \Swoole\Coroutine::create($callback);
     }
 
     /**
-     * 休眠指定秒数
+     * 在协程容器中执行入口函数并等待其完成
      *
-     * @param float $seconds 休眠秒数
+     * @param callable $main 入口函数
+     * @return mixed 入口函数返回值
      */
-    public function sleep(float $seconds): void
+    #[\Override]
+    public function run(callable $main): mixed
     {
-        \Swoole\Coroutine::sleep($seconds);
+        if (\Swoole\Coroutine::getCid() > 0) {
+            return $main();
+        }
+
+        $result = null;
+        \Swoole\Coroutine\run(static function () use ($main, &$result): void {
+            $result = $main();
+        });
+
+        return $result;
     }
 
-    /**
-     * 创建一个通道
-     *
-     * @param int $capacity 通道容量
-     * @return ChannelInterface 通道实例
-     */
+    #[\Override]
+    public function sleep(float $seconds): void
+    {
+        if ($seconds <= 0) {
+            return;
+        }
+
+        if (\Swoole\Coroutine::getCid() > 0) {
+            \Swoole\Coroutine::sleep($seconds);
+            return;
+        }
+
+        usleep((int) round($seconds * 1_000_000));
+    }
+
+    #[\Override]
     public function createChannel(int $capacity = 0): ChannelInterface
     {
         return new SwooleChannel($capacity);
     }
 
     /**
-     * 注册当前协程退出时执行的回调
+     * 并发执行任务并收集结果
      *
-     * @param callable $callback 清理函数
+     * @param iterable<array-key, callable> $tasks 任务列表
+     * @return array<array-key, mixed> 与任务键一一对应的结果
      */
-    public function defer(callable $callback): void
+    #[\Override]
+    public function parallel(iterable $tasks): array
     {
-        \Swoole\Coroutine::defer($callback);
+        $callables = is_array($tasks) ? $tasks : iterator_to_array($tasks);
+
+        if ($callables === []) {
+            return [];
+        }
+
+        if (function_exists('\Swoole\Coroutine\batch')) {
+            return $this->run(static fn (): array => \Swoole\Coroutine\batch($callables));
+        }
+
+        return $this->run(function () use ($callables): array {
+            $results = [];
+            $channel = new \Swoole\Coroutine\Channel(count($callables));
+
+            foreach ($callables as $key => $task) {
+                \Swoole\Coroutine::create(static function () use ($task, $key, $channel): void {
+                    $channel->push([$key, $task()]);
+                });
+            }
+
+            for ($i = 0, $total = count($callables); $i < $total; $i++) {
+                [$key, $value] = $channel->pop();
+                $results[$key] = $value;
+            }
+
+            return $results;
+        });
     }
 
     /**
-     * 等待所有协程完成（Swoole 模式下自动处理）
+     * 注册协程退出回调
+     *
+     * @param callable $callback 清理函数
      */
-    public function wait(): void
+    #[\Override]
+    public function defer(callable $callback): void
     {
+        if (\Swoole\Coroutine::getCid() > 0) {
+            \Swoole\Coroutine::defer($callback);
+            return;
+        }
+
+        parent::defer($callback);
     }
 }
