@@ -21,8 +21,11 @@
 
 | 包名 | 版本 | 说明 |
 |------|------|------|
-| `kode/context` | `^2.1` | 协程/纤程上下文管理（必需） |
-| `kode/console` | `^3.0` | 控制台输入输出（可选，suggest，用于 `ConsoleRuntime` 装饰器） |
+| `php` | `^8.3` | 运行环境（必需） |
+| `kode/context` | `^3.0` | 协程/纤程上下文管理（必需） |
+| `kode/console` | `^4.0` | 控制台输入输出（必需，用于 `ConsoleRuntime` 装饰器与 `RuntimeCommand` 命令基类） |
+
+> 可选并发能力通过 PHP 扩展提供：`ext-swoole`、`ext-swow`、`ext-pcntl`、`ext-parallel`。
 
 ---
 
@@ -64,7 +67,7 @@
 composer require kode/runtime
 ```
 
-> 最低要求 PHP 8.3。可选能力通过扩展提供：`ext-swoole`、`ext-swow`、`ext-pcntl`、`ext-parallel`；控制台增强通过 `kode/console`。
+> 最低要求 PHP 8.3。`kode/context` 与 `kode/console` 为必需依赖（已随 `composer require` 自动安装）。可选并发能力通过扩展提供：`ext-swoole`、`ext-swow`、`ext-pcntl`、`ext-parallel`。
 
 ### 2. 环境检测
 
@@ -461,7 +464,7 @@ interface ChannelInterface
 | Swoole | ✅ | v4.8+，需启用协程 |
 | Swow | ✅ | v1.5+ |
 | PHP Fiber | ✅ | PHP 8.3+ 原生 Fiber + 内置 `FiberScheduler` |
-| Console | ✅ | 装饰器模式，委托底层并发运行时（需 `kode/console`） |
+| Console | ✅ | 装饰器模式，委托底层并发运行时（依赖 `kode/console ^4.0`） |
 | 多进程 | ✅ | 基于 PCNTL（`ext-pcntl`） |
 | 多线程 | ⚠️ | 需 `ext-parallel`（ZTS 版本 PHP） |
 | CLI | ✅ | 同步顺序执行，API 完全兼容 |

@@ -20,6 +20,21 @@ final class ProcessRuntimeTest extends TestCase
         if (!RuntimeEnvironment::Process->isAvailable()) {
             $this->markTestSkipped('PCNTL 扩展不可用');
         }
+
+        // 即使加载了 pcntl，受限环境（沙箱、Swoole 事件循环内）也会禁止 fork
+        $probe = @pcntl_fork();
+
+        if ($probe === null || $probe === false) {
+            $this->markTestSkipped('当前运行时不支持 fork（pcntl_fork 被禁用）');
+        }
+
+        if ($probe === 0) {
+            // 子进程：直接退出，避免测试体在子进程中执行
+            exit(0);
+        }
+
+        // 父进程：回收探针子进程后继续
+        pcntl_waitpid($probe, $status);
     }
 
     /**

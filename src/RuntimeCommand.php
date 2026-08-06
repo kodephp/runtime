@@ -169,7 +169,7 @@ abstract class RuntimeCommand extends Command
      *
      * @return Output 输出器实例
      */
-    protected function getOutput(): Output
+    public function getOutput(): Output
     {
         if ($this->output === null) {
             $this->output = new Output();
@@ -182,7 +182,7 @@ abstract class RuntimeCommand extends Command
      *
      * @param Output $output 输出器实例
      */
-    protected function setOutput(Output $output): void
+    public function setOutput(Output $output): void
     {
         $this->output = $output;
     }

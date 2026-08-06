@@ -125,6 +125,16 @@ final class RuntimeTest extends TestCase
             $this->markTestSkipped('PCNTL 扩展不可用');
         }
 
+        // 受限环境（沙箱、Swoole 事件循环内）可能禁用 fork
+        $probe = @pcntl_fork();
+        if ($probe === null || $probe === false) {
+            $this->markTestSkipped('当前运行时不支持 fork（pcntl_fork 被禁用）');
+        }
+        if ($probe === 0) {
+            exit(0);
+        }
+        pcntl_waitpid($probe, $status);
+
         $pid = Runtime::fork(static function (): void {
             usleep(1000);
         });

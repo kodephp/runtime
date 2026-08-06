@@ -47,8 +47,8 @@ final class ProcessRuntime extends AbstractRuntime
 
         $pid = pcntl_fork();
 
-        if ($pid === -1) {
-            throw new Exception\RuntimeException('进程创建失败');
+        if ($pid === -1 || $pid === false || $pid === null) {
+            throw new Exception\RuntimeException('进程创建失败（当前环境不支持 fork）');
         }
 
         if ($pid === 0) {
@@ -91,10 +91,10 @@ final class ProcessRuntime extends AbstractRuntime
             [$parent, $child] = $pair;
             $pid = pcntl_fork();
 
-            if ($pid === -1) {
+            if ($pid === -1 || $pid === false || $pid === null) {
                 fclose($parent);
                 fclose($child);
-                throw new Exception\RuntimeException('进程创建失败');
+                throw new Exception\RuntimeException('进程创建失败（当前环境不支持 fork）');
             }
 
             if ($pid === 0) {
