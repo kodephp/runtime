@@ -55,6 +55,7 @@
 | 🧠 上下文管理 | 基于 `kode/context` 的协程安全存储 |
 | 🎮 Console 集成 | `ConsoleRuntime` 装饰器，委托给并发运行时并增强输出 |
 | 🧵 Fiber 调度器 | `FiberScheduler` 就绪队列 + 定时器事件循环，协程假异步已修复 |
+| 🔗 等待组（WaitGroup） | `Runtime::waitGroup()` / 全局 `waitGroup()` 动态派生任意数量异步任务，统一等待并分别收集结果与异常 |
 | 🛠️ 函数助手 | 全局函数 `go` / `parallel` / `run` / `channel` / `defer` / `delay` / `wait` |
 
 ---
@@ -163,7 +164,33 @@ Runtime::async(function () {
 
 `defer` 按**作用域**隔离：协程内注册的回调只在该协程结束时执行，主流程（根作用域）注册的回调在 `wait()` 或脚本结束时执行，且均为**后进先出（LIFO）**。
 
-### 7. 多进程支持
+### 7. 等待组（WaitGroup）
+
+当任务数量在编写时不确定、或在多处动态派发时，用 `WaitGroup` 比一次性 `parallel()` 更灵活。它在内部用完成通道阻塞等待，**单个任务失败不会中断其余任务**，并分别收集结果与异常。
+
+```php
+use Kode\Runtime\Runtime;
+
+Runtime::run(function () {
+    $wg = Runtime::waitGroup();
+
+    foreach (range(1, 5) as $i) {
+        $wg->run(static function () use ($i): int {
+            Runtime::sleep(0.1);
+            return $i * $i;
+        });
+    }
+
+    $wg->wait();
+
+    print_r($wg->results());   // [1, 4, 9, 16, 25]（按派发顺序）
+    echo $wg->hasErrors() ? '有任务失败' : '全部成功';
+});
+```
+
+> Fiber / CLI 运行时可在顶层直接使用；Swoole / Swow 等事件循环运行时请在 `Runtime::run()` 作用域内使用（与 `channel` / `parallel` 一致）。
+
+### 8. 多进程支持
 
 ```php
 use Kode\Runtime\Runtime;
@@ -181,7 +208,7 @@ Runtime::wait();
 
 子进程通过退出码返回状态，异常会被捕获并以退出码 `1` 传播，父进程据此判断成败。
 
-### 8. Console 命令
+### 9. Console 命令
 
 ```php
 use Kode\Runtime\RuntimeCommand;
@@ -270,6 +297,7 @@ class AsyncTaskCommand extends RuntimeCommand
 | `ConsoleRuntime` | Console 装饰器，委托并发运行时 + 输出增强 |
 | `CliRuntime` | CLI 同步执行适配器（顺序退化） |
 | `RuntimeCommand` | Console 命令基类 |
+| `WaitGroup` | 等待组（动态派生异步任务、统一等待并收集结果与异常） |
 | `functions.php` | 全局函数助手（composer `files` autoload） |
 
 ---
@@ -407,6 +435,7 @@ channel(int $capacity = 0): ChannelInterface;  // = Runtime::createChannel()
 defer(callable $callback): void;               // = Runtime::defer()
 delay(float $seconds): void;                   // = Runtime::sleep()
 wait(): void;                                  // = Runtime::wait()
+waitGroup(?RuntimeInterface $runtime = null): WaitGroup; // = Runtime::waitGroup()
 ```
 
 ### RuntimeCommand 基类
@@ -432,6 +461,36 @@ abstract class RuntimeCommand extends \Kode\Console\Command
     protected function progress(int $current, int $total, int $width = 50): void;
 }
 ```
+
+### WaitGroup 等待组
+
+```php
+final class WaitGroup
+{
+    // $runtime 为 null 时使用当前门面运行时
+    public function __construct(?RuntimeInterface $runtime = null);
+
+    // 增加待完成任务计数（delta 必须 ≥ 0，否则抛 InvalidArgumentException）
+    public function add(int $delta = 1): static;
+
+    // 派生一个异步任务，完成后收集返回值；异常收集到 errors()，不会中断其余任务
+    public function run(callable $task): static;
+
+    // 阻塞直到所有已派发任务完成（协程/事件循环运行时真正让出执行权）
+    public function wait(): void;
+
+    // 返回值，按派发序号排序（与 errors() 的键对应）
+    public function results(): array;
+
+    // 失败任务的异常，按派发序号排序
+    public function errors(): array;
+
+    public function hasErrors(): bool;
+    public function count(): int;   // 尚未完成的任务数量
+}
+```
+
+> 与 `parallel()` 的区别：`parallel()` 需一次性传入任务集合，且不区分「正常结果」与「任务异常」；`WaitGroup` 可在任意位置动态派生任务，并独立收集结果与异常。
 
 ---
 
@@ -498,6 +557,7 @@ composer cs-fix
 - ✅ CliRuntime 同步测试
 - ✅ 全局函数助手测试
 - ✅ RuntimeCommand 命令基类测试
+- ✅ WaitGroup 等待组测试（结果收集、异常隔离、并发、CLI 确定性）
 
 ---
 

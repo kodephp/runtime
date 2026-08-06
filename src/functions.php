@@ -76,4 +76,15 @@ if (!function_exists(__NAMESPACE__ . '\\go')) {
     {
         Runtime::wait();
     }
+
+    /**
+     * 创建一个等待组（WaitGroup）
+     *
+     * @param RuntimeInterface|null $runtime 运行时适配器，null 表示使用当前门面运行时
+     * @return WaitGroup 等待组实例
+     */
+    function waitGroup(?RuntimeInterface $runtime = null): WaitGroup
+    {
+        return Runtime::waitGroup($runtime);
+    }
 }

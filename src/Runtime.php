@@ -117,6 +117,17 @@ final class Runtime
     }
 
     /**
+     * 创建一个等待组（WaitGroup）
+     *
+     * @param RuntimeInterface|null $runtime 运行时适配器，null 表示使用当前门面运行时
+     * @return WaitGroup 等待组实例
+     */
+    public static function waitGroup(?RuntimeInterface $runtime = null): WaitGroup
+    {
+        return new WaitGroup($runtime ?? self::adapter());
+    }
+
+    /**
      * 创建子进程（仅在支持 PCNTL 的环境中可用）
      *
      * @param callable $callback 子进程中执行的函数
