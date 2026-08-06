@@ -43,9 +43,19 @@ final class SwooleRuntime extends AbstractRuntime
         }
 
         $result = null;
-        \Swoole\Coroutine\run(static function () use ($main, &$result): void {
-            $result = $main();
+        $error = null;
+        \Swoole\Coroutine\run(static function () use ($main, &$result, &$error): void {
+            try {
+                $result = $main();
+            } catch (\Throwable $e) {
+                // 捕获协程内异常，在协程结束后向上抛出，避免成为致命错误
+                $error = $e;
+            }
         });
+
+        if ($error !== null) {
+            throw $error;
+        }
 
         return $result;
     }

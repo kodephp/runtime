@@ -128,6 +128,97 @@ final class Runtime
     }
 
     /**
+     * 创建一个单飞（Once）原语
+     *
+     * @param RuntimeInterface|null $runtime 运行时适配器，null 表示使用当前门面运行时
+     * @return Once 单飞实例
+     */
+    public static function once(?RuntimeInterface $runtime = null): Once
+    {
+        return new Once($runtime ?? self::adapter());
+    }
+
+    /**
+     * 竞速：并发执行多个任务，返回第一个完成（成功或失败）的结果
+     *
+     * 其余任务继续在后台运行，但其结果被丢弃（本库无法真正取消协程/纤程）。
+     * 若胜出任务抛出异常，则该异常向上传播。
+     *
+     * 使用模型（与 WaitGroup / Once 一致）：
+     * - Fiber / CLI 运行时：可在顶层直接使用
+     * - Swoole / Swow 等事件循环运行时：请在 {@see Runtime::run()} 作用域内使用
+     *
+     * @param callable ...$tasks 待竞速的任务（至少 1 个）
+     * @return mixed 第一个完成任务的结果
+     * @throws \InvalidArgumentException 未提供任何任务时抛出
+     * @throws \Throwable 胜出任务抛出的异常
+     */
+    public static function race(callable ...$tasks): mixed
+    {
+        if ($tasks === []) {
+            throw new \InvalidArgumentException('race() 至少需要一个任务');
+        }
+
+        $runtime = self::adapter();
+        // 容量设为任务数：每个任务只推送一次，容量充足则永不阻塞，
+        // 避免「胜出者占满容量 1 通道后其余任务在推送时死锁」（尤其 Swoole 协程）。
+        $winner = $runtime->createChannel(count($tasks));
+
+        foreach ($tasks as $task) {
+            $runtime->async(function () use ($task, $winner): void {
+                try {
+                    $result = $task();
+                } catch (\Throwable $e) {
+                    $result = $e; // 以异常对象标记失败，交由调用方决定
+                }
+                $winner->push($result);
+            });
+        }
+
+        $value = $winner->pop();
+
+        if ($value instanceof \Throwable) {
+            throw $value;
+        }
+
+        return $value;
+    }
+
+    /**
+     * 选择：等待多个通道中第一个就绪者，返回其通道与数据
+     *
+     * 任一通道有数据可读时立即返回，格式为 `['channel' => ChannelInterface, 'value' => mixed]`。
+     * 其余通道继续保留其数据（不会被消费）。
+     *
+     * 使用模型（与 WaitGroup / Once 一致）：
+     * - Fiber / CLI 运行时：可在顶层直接使用
+     * - Swoole / Swow 等事件循环运行时：请在 {@see Runtime::run()} 作用域内使用
+     *
+     * @param ChannelInterface ...$channels 待监听的通道（至少 1 个）
+     * @return array{channel: ChannelInterface, value: mixed} 首个就绪通道及其数据
+     * @throws \InvalidArgumentException 未提供任何通道时抛出
+     */
+    public static function select(ChannelInterface ...$channels): array
+    {
+        if ($channels === []) {
+            throw new \InvalidArgumentException('select() 至少需要一个通道');
+        }
+
+        $runtime = self::adapter();
+        // 容量设为通道数：每个监听协程只推送一次，容量充足则永不阻塞，避免死锁。
+        $signal = $runtime->createChannel(count($channels));
+
+        foreach ($channels as $channel) {
+            $runtime->async(function () use ($channel, $signal): void {
+                $value = $channel->pop();
+                $signal->push(['channel' => $channel, 'value' => $value]);
+            });
+        }
+
+        return $signal->pop();
+    }
+
+    /**
      * 创建子进程（仅在支持 PCNTL 的环境中可用）
      *
      * @param callable $callback 子进程中执行的函数

@@ -87,4 +87,37 @@ if (!function_exists(__NAMESPACE__ . '\\go')) {
     {
         return Runtime::waitGroup($runtime);
     }
+
+    /**
+     * 创建一个单飞（Once）原语
+     *
+     * @param RuntimeInterface|null $runtime 运行时适配器，null 表示使用当前门面运行时
+     * @return Once 单飞实例
+     */
+    function once(?RuntimeInterface $runtime = null): Once
+    {
+        return Runtime::once($runtime);
+    }
+
+    /**
+     * 竞速：并发执行多个任务，返回第一个完成（成功或失败）的结果
+     *
+     * @param callable ...$tasks 待竞速的任务（至少 1 个）
+     * @return mixed 第一个完成任务的结果
+     */
+    function race(callable ...$tasks): mixed
+    {
+        return Runtime::race(...$tasks);
+    }
+
+    /**
+     * 选择：等待多个通道中第一个就绪者，返回其通道与数据
+     *
+     * @param ChannelInterface ...$channels 待监听的通道（至少 1 个）
+     * @return array{channel: ChannelInterface, value: mixed} 首个就绪通道及其数据
+     */
+    function select(ChannelInterface ...$channels): array
+    {
+        return Runtime::select(...$channels);
+    }
 }

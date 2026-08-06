@@ -56,7 +56,10 @@
 | 🎮 Console 集成 | `ConsoleRuntime` 装饰器，委托给并发运行时并增强输出 |
 | 🧵 Fiber 调度器 | `FiberScheduler` 就绪队列 + 定时器事件循环，协程假异步已修复 |
 | 🔗 等待组（WaitGroup） | `Runtime::waitGroup()` / 全局 `waitGroup()` 动态派生任意数量异步任务，统一等待并分别收集结果与异常 |
-| 🛠️ 函数助手 | 全局函数 `go` / `parallel` / `run` / `channel` / `defer` / `delay` / `wait` |
+| 🔁 单飞（Once） | `Runtime::once()` / 全局 `once()` 确保回调仅执行一次，并发调用者共享同一结果（含异常） |
+| 🏁 竞速（race） | `Runtime::race()` / 全局 `race()` 并发执行多个任务，返回**首个完成**（成功或失败）的结果 |
+| 📡 选择（select） | `Runtime::select()` / 全局 `select()` 等待多个通道中**首个就绪者**，返回其通道与数据 |
+| 🛠️ 函数助手 | 全局函数 `go` / `parallel` / `run` / `channel` / `defer` / `delay` / `wait` / `waitGroup` / `once` / `race` / `select` |
 
 ---
 
@@ -190,7 +193,40 @@ Runtime::run(function () {
 
 > Fiber / CLI 运行时可在顶层直接使用；Swoole / Swow 等事件循环运行时请在 `Runtime::run()` 作用域内使用（与 `channel` / `parallel` 一致）。
 
-### 8. 多进程支持
+### 8. 单飞（Once）与通道竞争（race / select）
+
+`Once` 保证回调**仅执行一次**，多个并发调用者共享同一次执行的结果（或异常），适合缓存一次性初始化、防止重复副作用。
+
+`race()` 并发执行多个任务，返回**第一个完成**（无论成功或失败）的结果；其余任务继续在后台运行但结果被丢弃。若胜出任务抛异常，则向上传播。
+
+`select()` 等待多个通道中**第一个就绪**者，返回其通道与数据，格式为 `['channel' => ChannelInterface, 'value' => mixed]`。
+
+```php
+use Kode\Runtime\Runtime;
+
+// 单飞：昂贵的初始化只算一次
+$once = Runtime::once();
+$value = Runtime::run(fn () => $once->do(fn () => expensiveLookup()));
+
+// 竞速：最快者胜出
+$fastest = Runtime::run(fn () => Runtime::race(
+    fn () => fetchFromCache(),   // 可能更快
+    fn () => fetchFromApi(),     // 可能更慢
+));
+
+// 选择：谁先有数据用谁
+[$channel, $value] = Runtime::run(function () {
+    $a = Runtime::createChannel();
+    $b = Runtime::createChannel();
+    Runtime::async(fn () => $a->push('from-a'));
+    $r = Runtime::select($a, $b);
+    return [$r['channel'], $r['value']];
+});
+```
+
+> 与 `WaitGroup` / `channel` 一致：Fiber / CLI 可在顶层直接使用；Swoole / Swow 等事件循环运行时请在 `Runtime::run()` 作用域内使用。
+
+### 9. 多进程支持
 
 ```php
 use Kode\Runtime\Runtime;
@@ -208,7 +244,7 @@ Runtime::wait();
 
 子进程通过退出码返回状态，异常会被捕获并以退出码 `1` 传播，父进程据此判断成败。
 
-### 9. Console 命令
+### 10. Console 命令
 
 ```php
 use Kode\Runtime\RuntimeCommand;
@@ -298,6 +334,7 @@ class AsyncTaskCommand extends RuntimeCommand
 | `CliRuntime` | CLI 同步执行适配器（顺序退化） |
 | `RuntimeCommand` | Console 命令基类 |
 | `WaitGroup` | 等待组（动态派生异步任务、统一等待并收集结果与异常） |
+| `Once` | 单飞原语（回调仅执行一次，并发调用者共享结果） |
 | `functions.php` | 全局函数助手（composer `files` autoload） |
 
 ---
@@ -338,6 +375,18 @@ final class Runtime
 
     // 等待所有异步任务完成
     public static function wait(): void;
+
+    // 创建等待组（WaitGroup）
+    public static function waitGroup(?RuntimeInterface $runtime = null): WaitGroup;
+
+    // 创建单飞原语（Once）
+    public static function once(?RuntimeInterface $runtime = null): Once;
+
+    // 竞速：并发执行多个任务，返回第一个完成（成功/失败）的结果
+    public static function race(callable ...$tasks): mixed;
+
+    // 选择：等待多个通道中第一个就绪者，返回 ['channel' => ChannelInterface, 'value' => mixed]
+    public static function select(ChannelInterface ...$channels): array;
 
     // 创建子进程（仅 PCNTL 环境）
     public static function fork(callable $callback): int;
@@ -436,6 +485,9 @@ defer(callable $callback): void;               // = Runtime::defer()
 delay(float $seconds): void;                   // = Runtime::sleep()
 wait(): void;                                  // = Runtime::wait()
 waitGroup(?RuntimeInterface $runtime = null): WaitGroup; // = Runtime::waitGroup()
+once(?RuntimeInterface $runtime = null): Once;            // = Runtime::once()
+race(callable ...$tasks): mixed;                          // = Runtime::race()
+select(ChannelInterface ...$channels): array;             // = Runtime::select()
 ```
 
 ### RuntimeCommand 基类
@@ -491,6 +543,28 @@ final class WaitGroup
 ```
 
 > 与 `parallel()` 的区别：`parallel()` 需一次性传入任务集合，且不区分「正常结果」与「任务异常」；`WaitGroup` 可在任意位置动态派生任务，并独立收集结果与异常。
+
+### Once 单飞
+
+```php
+final class Once
+{
+    // $runtime 为 null 时使用当前门面运行时
+    public function __construct(?RuntimeInterface $runtime = null);
+
+    // 执行被包裹的回调（仅一次），返回其结果；并发调用者共享同一结果。
+    // 若首次执行抛异常，则后续调用同样抛该异常且不会重新执行（Once 语义）。
+    public function do(callable $fn): mixed;
+
+    // 回调是否已经执行过（无论成功或失败）
+    public function hasRun(): bool;
+
+    // 重置状态，允许下次调用重新执行回调（适用于长生命周期进程周期性重新初始化）
+    public function reset(): void;
+}
+```
+
+> `Once` 内部使用容量为 1 的通道作为二元信号量，串行化「是否已完成」的判定与执行，保证在 Fiber / Swoole / Swow 等协作式或抢占式并发下都只执行一次。
 
 ---
 
@@ -558,6 +632,8 @@ composer cs-fix
 - ✅ 全局函数助手测试
 - ✅ RuntimeCommand 命令基类测试
 - ✅ WaitGroup 等待组测试（结果收集、异常隔离、并发、CLI 确定性）
+- ✅ Once 单飞测试（仅执行一次、并发共享、异常缓存、reset、CLI 顶层）
+- ✅ race / select 竞争原语测试（最快胜出、异常传播、首个就绪通道、全局函数助手）
 
 ---
 
@@ -591,6 +667,7 @@ src/
 ├── RuntimeCommand.php         # 命令基类
 ├── RuntimeEnvironment.php     # 运行环境枚举
 ├── RuntimeInterface.php       # 运行时接口
+├── Once.php                   # 单飞原语
 ├── SwooleChannel.php          # Swoole 通道
 ├── SwooleRuntime.php          # Swoole 运行时
 ├── SwowChannel.php            # Swow 通道
