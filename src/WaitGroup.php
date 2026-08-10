@@ -90,7 +90,7 @@ final class WaitGroup
      * 派生一个异步任务
      *
      * 任务完成后其结果写入 {@see results()}，异常写入 {@see errors()}，
-     * 无论成功失败都会递减计数器并通知等待者。
+     * 无论成功失败都会递减计数器并通知等待者（等价于此对象内部调用一次 {@see done()}）。
      *
      * @param callable $task 任务函数
      * @return static 便于链式调用
@@ -107,9 +107,25 @@ final class WaitGroup
                 $this->errors[$id] = $e;
             } finally {
                 // 无论成功失败都递减计数，避免等待者永久阻塞
-                $this->channel->push($id);
+                $this->done();
             }
         });
+
+        return $this;
+    }
+
+    /**
+     * 通知一个待完成任务已完成（递减计数器）
+     *
+     * 与 {@see add()} 配合使用：先 {@see add()} 预登记若干外部派发的任务，
+     * 待各任务结束时调用本方法归还计数，避免 {@see wait()} 因无人通知而永久阻塞。
+     * 传入的回调返回值/异常不会被收集（请改用 {@see run()} 以获得结果收集）。
+     *
+     * @return static 便于链式调用
+     */
+    public function done(): static
+    {
+        $this->channel->push(1);
 
         return $this;
     }

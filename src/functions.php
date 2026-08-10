@@ -100,6 +100,18 @@ if (!function_exists(__NAMESPACE__ . '\\go')) {
     }
 
     /**
+     * 创建一个信号量（Semaphore）并发限流原语
+     *
+     * @param int $permits 许可数量（必须 ≥ 1）
+     * @param RuntimeInterface|null $runtime 运行时适配器，null 表示使用当前门面运行时
+     * @return Semaphore 信号量实例
+     */
+    function semaphore(int $permits, ?RuntimeInterface $runtime = null): Semaphore
+    {
+        return Runtime::semaphore($permits, $runtime);
+    }
+
+    /**
      * 竞速：并发执行多个任务，返回第一个完成（成功或失败）的结果
      *
      * @param callable ...$tasks 待竞速的任务（至少 1 个）

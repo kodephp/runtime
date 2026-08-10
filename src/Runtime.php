@@ -139,6 +139,19 @@ final class Runtime
     }
 
     /**
+     * 创建一个信号量（Semaphore）并发限流原语
+     *
+     * @param int $permits 许可数量（必须 ≥ 1）
+     * @param RuntimeInterface|null $runtime 运行时适配器，null 表示使用当前门面运行时
+     * @return Semaphore 信号量实例
+     * @throws \InvalidArgumentException 许可数量小于 1 时抛出
+     */
+    public static function semaphore(int $permits, ?RuntimeInterface $runtime = null): Semaphore
+    {
+        return new Semaphore($permits, $runtime ?? self::adapter());
+    }
+
+    /**
      * 竞速：并发执行多个任务，返回第一个完成（成功或失败）的结果
      *
      * 其余任务继续在后台运行，但其结果被丢弃（本库无法真正取消协程/纤程）。

@@ -59,7 +59,8 @@
 | 🔁 单飞（Once） | `Runtime::once()` / 全局 `once()` 确保回调仅执行一次，并发调用者共享同一结果（含异常） |
 | 🏁 竞速（race） | `Runtime::race()` / 全局 `race()` 并发执行多个任务，返回**首个完成**（成功或失败）的结果 |
 | 📡 选择（select） | `Runtime::select()` / 全局 `select()` 等待多个通道中**首个就绪者**，返回其通道与数据 |
-| 🛠️ 函数助手 | 全局函数 `go` / `parallel` / `run` / `channel` / `defer` / `delay` / `wait` / `waitGroup` / `once` / `race` / `select` |
+| 🚦 信号量（Semaphore） | `Runtime::semaphore()` / 全局 `semaphore()` 有界并发限流，最多允许 N 个任务同时进入临界区 |
+| 🛠️ 函数助手 | 全局函数 `go` / `parallel` / `run` / `channel` / `defer` / `delay` / `wait` / `waitGroup` / `once` / `race` / `select` / `semaphore` |
 
 ---
 
@@ -226,6 +227,26 @@ $fastest = Runtime::run(fn () => Runtime::race(
 
 > 与 `WaitGroup` / `channel` 一致：Fiber / CLI 可在顶层直接使用；Swoole / Swow 等事件循环运行时请在 `Runtime::run()` 作用域内使用。
 
+### 8.1 信号量（Semaphore）并发限流
+
+`semaphore(int $permits)` 创建持有 N 个「许可」的信号量，任意时刻最多 N 个任务进入临界区；其余调用者阻塞等待，许可释放后方才继续。适合限制对下游服务 / 数据库的连接并发数，防止被打爆。
+
+```php
+use Kode\Runtime\Runtime;
+
+// 最多 2 个并发，其余排队等待
+$results = Runtime::run(function () {
+    $sem = Runtime::semaphore(2);
+
+    return Runtime::parallel(array_map(
+        static fn (int $i) => static fn () => $sem->run(static fn () => doWork($i)),
+        range(0, 9)
+    ));
+});
+```
+
+`acquire()` / `release()` 可手动控制许可；`run($task)` 等价于「acquire → 执行 → release（finally 中释放，异常不泄漏许可）」；`available()` / `capacity()` 查看当前 / 总许可数。
+
 ### 9. 多进程支持
 
 ```php
@@ -335,6 +356,7 @@ class AsyncTaskCommand extends RuntimeCommand
 | `RuntimeCommand` | Console 命令基类 |
 | `WaitGroup` | 等待组（动态派生异步任务、统一等待并收集结果与异常） |
 | `Once` | 单飞原语（回调仅执行一次，并发调用者共享结果） |
+| `Semaphore` | 信号量（有界并发限流，最多 N 个任务同时进入临界区） |
 | `functions.php` | 全局函数助手（composer `files` autoload） |
 
 ---
@@ -387,6 +409,9 @@ final class Runtime
 
     // 选择：等待多个通道中第一个就绪者，返回 ['channel' => ChannelInterface, 'value' => mixed]
     public static function select(ChannelInterface ...$channels): array;
+
+    // 创建信号量（Semaphore），最多 $permits 个并发
+    public static function semaphore(int $permits, ?RuntimeInterface $runtime = null): Semaphore;
 
     // 创建子进程（仅 PCNTL 环境）
     public static function fork(callable $callback): int;
@@ -488,6 +513,7 @@ waitGroup(?RuntimeInterface $runtime = null): WaitGroup; // = Runtime::waitGroup
 once(?RuntimeInterface $runtime = null): Once;            // = Runtime::once()
 race(callable ...$tasks): mixed;                          // = Runtime::race()
 select(ChannelInterface ...$channels): array;             // = Runtime::select()
+semaphore(int $permits, ?RuntimeInterface $runtime = null): Semaphore; // = Runtime::semaphore()
 ```
 
 ### RuntimeCommand 基类
@@ -528,6 +554,9 @@ final class WaitGroup
     // 派生一个异步任务，完成后收集返回值；异常收集到 errors()，不会中断其余任务
     public function run(callable $task): static;
 
+    // 通知一个待完成任务已完成（与 add() 配对，归还计数，避免 wait() 死锁）
+    public function done(): static;
+
     // 阻塞直到所有已派发任务完成（协程/事件循环运行时真正让出执行权）
     public function wait(): void;
 
@@ -565,6 +594,31 @@ final class Once
 ```
 
 > `Once` 内部使用容量为 1 的通道作为二元信号量，串行化「是否已完成」的判定与执行，保证在 Fiber / Swoole / Swow 等协作式或抢占式并发下都只执行一次。
+
+### Semaphore 信号量
+
+```php
+final class Semaphore
+{
+    // $permits 为许可数量（必须 ≥ 1，否则抛 InvalidArgumentException）
+    // $runtime 为 null 时使用当前门面运行时
+    public function __construct(int $permits, ?RuntimeInterface $runtime = null);
+
+    // 获取一个许可（无可用许可则阻塞等待）
+    public function acquire(): void;
+
+    // 释放一个许可，使一个等待者继续（释放次数不得超过 capacity()）
+    public function release(): void;
+
+    // 在临界区内执行回调（acquire → 执行 → release，异常不泄漏许可）
+    public function run(callable $task): mixed;
+
+    public function available(): int;  // 当前可用许可数
+    public function capacity(): int;   // 总许可数
+}
+```
+
+> `Semaphore` 内部用容量为许可数的通道充当「许可池」，`acquire()` 取走令牌、`release()` 归还令牌；令牌耗尽时阻塞直至被释放，在 Fiber / Swoole / Swow 等并发下都能正确让出执行权。
 
 ---
 

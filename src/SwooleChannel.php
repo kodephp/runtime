@@ -14,6 +14,14 @@ final class SwooleChannel implements ChannelInterface
     private readonly \Swoole\Coroutine\Channel $channel;
 
     /**
+     * 关闭状态标记
+     *
+     * \Swoole\Coroutine\Channel 没有可靠的「是否已关闭」查询方法，
+     * 其 errCode 仅反映上一次操作的错误码，故需自行维护关闭状态。
+     */
+    private bool $closed = false;
+
+    /**
      * 创建新的 Swoole 通道
      *
      * @param int $capacity 通道容量
@@ -70,12 +78,13 @@ final class SwooleChannel implements ChannelInterface
     #[\Override]
     public function close(): void
     {
+        $this->closed = true;
         $this->channel->close();
     }
 
     #[\Override]
     public function isClosed(): bool
     {
-        return $this->channel->errCode === SWOOLE_CHANNEL_CLOSED;
+        return $this->closed;
     }
 }

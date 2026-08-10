@@ -166,4 +166,44 @@ final class WaitGroupTest extends TestCase
         $wg->run(static fn (): int => 1); // run() 内部再 +1
         self::assertSame(3, $wg->count());
     }
+
+    /**
+     * 仅 add() 登记的外部任务，可经 done() 归还计数，避免 wait() 死锁
+     */
+    public function testAddPairedWithDoneAvoidsDeadlock(): void
+    {
+        Runtime::setEnvironment(RuntimeEnvironment::Cli);
+
+        $runtime = new CliRuntime();
+        $wg = new WaitGroup($runtime);
+
+        // 登记 3 个外部派发的任务，并立即通过 done() 归还计数
+        $wg->add(3);
+        $wg->done();
+        $wg->done();
+        $wg->done();
+
+        // 不应永久阻塞
+        $wg->wait();
+
+        self::assertSame(0, $wg->count());
+        self::assertFalse($wg->hasErrors());
+    }
+
+    /**
+     * run() 内部等价于在任务结束时调用一次 done()
+     */
+    public function testRunInvokesDoneOnCompletion(): void
+    {
+        Runtime::setEnvironment(RuntimeEnvironment::Cli);
+
+        $runtime = new CliRuntime();
+        $wg = new WaitGroup($runtime);
+
+        $wg->run(static fn (): int => 7);
+        $wg->wait();
+
+        self::assertSame([7], $wg->results());
+        self::assertSame(0, $wg->count());
+    }
 }
