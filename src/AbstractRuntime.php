@@ -190,6 +190,20 @@ abstract class AbstractRuntime implements RuntimeInterface
     }
 
     /**
+     * 丢弃从父进程继承来的待执行清理（fork 出的子进程专用）
+     *
+     * 子进程拿到的是父进程的完整内存镜像，其中包括「父进程自己的收尾回调」与
+     * 「父进程挂起的协程」。子进程 exit() 会照常走 shutdown 链，原样保留就等于把
+     * 父进程的清理重放一遍——解锁、提交、发响应这类副作用会凭空多做一次。
+     *
+     * @internal 仅供 Runtime::fork() 在子进程侧调用
+     */
+    public function discardInheritedState(): void
+    {
+        $this->scopes = [];
+    }
+
+    /**
      * 注册脚本结束时的根作用域清理
      */
     private function hookShutdown(): void

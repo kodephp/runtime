@@ -234,6 +234,10 @@ final class Runtime
     /**
      * 创建子进程（仅在支持 PCNTL 的环境中可用）
      *
+     * 子进程执行完回调后自行 exit（成功 0、异常 1），本方法不阻塞父进程。
+     * **回收由调用方负责**：拿到 PID 后请 `pcntl_waitpid($pid, $status)`，
+     * 否则子进程退出后会以僵尸驻留；{@see self::wait()} 只驱动协程，不回收进程。
+     *
      * @param callable $callback 子进程中执行的函数
      * @return int 子进程 PID
      * @throws Exception\UnsupportedOperationException 环境不支持进程创建时抛出
@@ -254,16 +258,44 @@ final class Runtime
         }
 
         if ($pid === 0) {
+            self::prepareChildAfterFork();
+
             $code = 0;
+
             try {
                 $callback();
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
+                // 子进程与父进程共用错误流：先说出去再退，否则失败连痕迹都不留
+                \fwrite(\STDERR, \sprintf(
+                    'fork 子进程未捕获异常：%s: %s',
+                    $e::class,
+                    $e->getMessage()
+                ) . \PHP_EOL);
                 $code = 1;
             }
+
             exit($code);
         }
 
         return $pid;
+    }
+
+    /**
+     * 子进程侧的继承状态清理
+     *
+     * 只做「本包自己那份进程级状态」：第三方用 register_shutdown_function 注册的
+     * 收尾无法撤销，子进程 exit() 仍会执行它们——fork 前请自行确认这一点。
+     */
+    private static function prepareChildAfterFork(): void
+    {
+        $adapter = self::$adapter;
+
+        if ($adapter instanceof AbstractRuntime) {
+            $adapter->discardInheritedState();
+        }
+
+        // 父进程未跑完的协程、定时器与积压异常同样不该出现在子进程里
+        FiberScheduler::resetInstance();
     }
 
     /**
@@ -299,9 +331,13 @@ final class Runtime
 
     /**
      * 重置运行时适配器（用于测试）
+     *
+     * 适配器与 Fiber 调度器是同一份进程级状态的两侧：只清一边，另一边攒下的
+     * 协程/定时器/异常会被下一次 run() 当作本轮结果抛出来（跨请求串味）。
      */
     public static function reset(): void
     {
         self::$adapter = null;
+        FiberScheduler::resetInstance();
     }
 }

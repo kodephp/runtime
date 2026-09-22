@@ -263,7 +263,11 @@ $pid = Runtime::fork(function () {
 Runtime::wait();
 ```
 
-子进程通过退出码返回状态，异常会被捕获并以退出码 `1` 传播，父进程据此判断成败。
+子进程通过退出码返回状态：正常结束 `0`，任务抛异常则以 `1` 反馈给父进程，并把异常原文写到 stderr（与父进程共用同一错误流，不会无声失败）。
+
+**回收由调用方负责**：`fork()` 拿到 PID 后请自行 `pcntl_waitpid($pid, $status)`，否则子进程退出后以僵尸态驻留。`Runtime::wait()` 只驱动协程，**不回收进程**——它会从别处取走子进程状态，导致你再也读不到退出码。
+
+**子进程不会重放父进程的收尾**：子进程是父进程的内存镜像，`exit()` 会照常触发 shutdown 链。本包在子进程侧丢弃继承来的 defer 作用域与 `FiberScheduler` 全局实例，因此父进程注册的 `defer()`、父进程未跑完的协程都不会在子进程里多做一遍。第三方通过 `register_shutdown_function()` 注册的收尾无法撤销，fork 前请自行确认其幂等。
 
 ### 10. Console 命令
 
@@ -296,6 +300,45 @@ class AsyncTaskCommand extends RuntimeCommand
 ```
 
 > `ConsoleRuntime` 现在是**装饰器**：它内部委托给 `RuntimeAdapterFactory::createConcurrent()` 选择的并发运行时，只增强控制台输出，不再因为安装了 `kode/console` 就把运行时降级为同步。
+
+---
+
+## 🏃 常驻进程语义（v3.5.0）
+
+HTTP worker / queue consumer 这类「一个进程服务很多次请求」的形态下，运行时适配器与调度器都是**进程级单例**，以下几条口径决定了故障会不会被看见。
+
+### 无人接收的协程异常不再静默消失
+
+`async()` 派发的协程抛异常时，一次 `run()` 只能向调用方抛出**一个**异常。v3.4.0 之前，其余异常在登记后直接清零（实测：3 个协程失败，调用方只得知 1 个，另外 2 个连痕迹都没有）。现在它们交给上报通道，`run()` 的「抛出第一个」契约保持不变：
+
+```php
+use Kode\Runtime\FiberScheduler;
+
+FiberScheduler::instance()->setErrorHandler(
+    static fn (Throwable $e) => $logger->error('协程失败：' . $e->getMessage())
+);
+```
+
+未设置处理器时写 stderr（常驻 worker 的错误流本就进服务日志；`error_log()` 在 CLI 默认落 stdout，会混进响应体）。
+
+### `Runtime::reset()` 现在连调度器一起归零
+
+适配器与 `FiberScheduler` 是同一份进程级状态的两侧。只清适配器时，上一个请求攒下的协程、定时器与积压异常会被下一次 `run()` 当作本轮结果抛出——表现为「请求 A 的失败算到了请求 B 头上」（已实测复现）。一次调用即彻底隔离：
+
+```php
+Runtime::reset();   // = 适配器置空 + FiberScheduler::resetInstance()
+```
+
+### Swoole 下 `wait()` 会真正等到协程收尾
+
+`Coroutine::create()` 派发的协程一旦挂起（`sleep` / channel / IO），只清作用域是等不到它结束的：尾巴会漂到 Swoole 的 `rshutdown` 里执行（6.x 已对此发 `Deprecated: swoole_event_rshutdown()` 警告），调用方在 `wait()` 之后看到的状态就成了「还没做完」。现在 `SwooleRuntime::wait()` 会在**主流程**（`getCid() <= 0`）里驱动一次事件循环收口；已经在协程内时不嵌套驱动，交由外层 `run()` / 服务端循环负责。
+
+```php
+Runtime::setEnvironment(RuntimeEnvironment::Swoole);
+
+Runtime::async(static fn () => Co\sleep(0.02) && saveResult());
+Runtime::wait();          // v3.5.0 起：返回时协程确已结束
+```
 
 ---
 
@@ -413,7 +456,8 @@ final class Runtime
     // 创建信号量（Semaphore），最多 $permits 个并发
     public static function semaphore(int $permits, ?RuntimeInterface $runtime = null): Semaphore;
 
-    // 创建子进程（仅 PCNTL 环境）
+    // 创建子进程（仅 PCNTL 环境）；回收由调用方 pcntl_waitpid() 负责，
+    // 子进程侧会自动丢弃继承自父进程的 defer 作用域与调度器状态
     public static function fork(callable $callback): int;
 
     // 设置特定运行环境（接受枚举或字符串）
@@ -485,12 +529,13 @@ final class RuntimeAdapterFactory
 final class FiberScheduler
 {
     public static function instance(): self;       // 全局单例
-    public static function resetInstance(): void;  // 重置（测试用）
+    public static function resetInstance(): void;  // 重置（测试用）；Runtime::reset() 会一并调用
 
     public function spawn(callable $callback, ?callable $onFinish = null): \Fiber;
     public function yield(): void;
     public function sleep(float $seconds): void;
-    public function run(): void;                   // 驱动循环直到全部结束
+    public function run(): void;                   // 驱动循环直到全部结束，抛出首个协程异常
+    public function setErrorHandler(?callable $handler): void;  // 接收其余无人可抛的协程异常
     public function tick(): bool;
     public function hasPendingWork(): bool;
     public function hasOtherWork(): bool;          // Channel 死锁判定

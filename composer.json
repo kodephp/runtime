@@ -2,7 +2,7 @@
     "name": "kode/runtime",
     "description": "现代 PHP 常驻内存应用的统一运行时抽象层 | 支持 Swoole、Swow、PHP Fiber、多进程、多线程、Console 及传统 CLI 模式，基于 PHP 8.3+ 新特性构建",
     "keywords": ["runtime", "swoole", "swow", "fiber", "coroutine", "async", "parallel", "php", "console"],
-    "version": "3.4.0",
+    "version": "3.5.0",
     "type": "library",
     "license": "Apache-2.0",
     "authors": [

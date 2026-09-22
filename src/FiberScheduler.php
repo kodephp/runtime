@@ -54,6 +54,11 @@ final class FiberScheduler
      */
     private array $exceptions = [];
 
+    /**
+     * 「无法经由 run() 传出」的协程异常处理器，为 null 时写 stderr
+     */
+    private ?\Closure $errorHandler = null;
+
     private bool $looping = false;
 
     public function __construct()
@@ -338,6 +343,9 @@ final class FiberScheduler
     /**
      * 抛出协程内未捕获的第一个异常
      *
+     * 其余异常没有调用方可达（一次 run() 只能抛一个），必须先交出去，
+     * 否则它们登记完就蒸发——表现为「协程明明炸了，进程里一个字都没有」。
+     *
      * @throws \Throwable 协程异常
      */
     private function throwPendingException(): void
@@ -346,9 +354,53 @@ final class FiberScheduler
             return;
         }
 
-        $exception = array_shift($this->exceptions);
-        $this->exceptions = [];
+        $first = $this->exceptions[0];
+        $rest = \array_slice($this->exceptions, 1);
 
-        throw $exception;
+        // 先清再报再抛：上报处理器里若回调 run()，不能看到同一批异常两次
+        $this->exceptions = [];
+        $this->report($rest);
+
+        throw $first;
+    }
+
+    /**
+     * 设置「无法经由 run() 传出」的协程异常处理器
+     *
+     * 常驻进程用它把协程失败接到自己的日志通道；未设置时写 stderr。
+     */
+    public function setErrorHandler(?callable $handler): void
+    {
+        $this->errorHandler = $handler === null
+            ? null
+            : ($handler instanceof \Closure ? $handler : \Closure::fromCallable($handler));
+    }
+
+    /**
+     * 上报无人接收的协程异常
+     *
+     * @param list<\Throwable> $exceptions 待上报异常
+     */
+    private function report(array $exceptions): void
+    {
+        foreach ($exceptions as $exception) {
+            try {
+                if ($this->errorHandler !== null) {
+                    ($this->errorHandler)($exception);
+
+                    continue;
+                }
+
+                // 直写 stderr：error_log() 的去向取决于部署方的 ini（CLI 默认落 stdout，
+                // 会被测试框架当成「意外输出」，也会混进响应体）
+                \fwrite(\STDERR, \sprintf(
+                    '无人接收的协程异常：%s: %s',
+                    $exception::class,
+                    $exception->getMessage()
+                ) . \PHP_EOL);
+            } catch (\Throwable) {
+                // 上报通道自身失败不能拖垮事件循环
+            }
+        }
     }
 }

@@ -120,6 +120,24 @@ final class SwooleRuntime extends AbstractRuntime
     }
 
     /**
+     * 驱动事件循环，直到 async() 派发的协程全部结束
+     *
+     * 协程一旦挂起（sleep / channel / IO），只清作用域是等不到它收尾的：
+     * 那截尾巴会漂到 Swoole 的 rshutdown 里执行（6.x 已对此发 deprecated 警告），
+     * 调用方在 wait() 之后看到的状态就成了「还没做完」。
+     */
+    #[\Override]
+    public function wait(): void
+    {
+        // 只在主流程收口：已经在协程里时，外层 run()/服务端循环才是驱动者，嵌套驱动会自锁
+        if (\Swoole\Coroutine::getCid() <= 0 && iterator_count(\Swoole\Coroutine::listCoroutines()) > 0) {
+            \Swoole\Event::wait();
+        }
+
+        parent::wait();
+    }
+
+    /**
      * 注册协程退出回调
      *
      * @param callable $callback 清理函数
