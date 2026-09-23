@@ -342,6 +342,22 @@ Runtime::wait();          // v3.5.0 起：返回时协程确已结束
 
 ---
 
+## 🏷️ 版本自述（v3.6.0）
+
+`Runtime::VERSION` 常量与 `Runtime::version()` 暴露本包版本，用于诊断输出与运行时核对：
+
+```php
+use Kode\Runtime\Runtime;
+
+Runtime::version();         // '3.6.0'
+Runtime::VERSION;           // 同一常量的字面量
+```
+
+`composer.json` 的 `version` 字段是 composer 侧的权威值，类常量是它的交叉核对副本——
+`tests/VersionGuardTest.php` 在两者不一致时直接失败，杜绝「tag 打了、常量忘改」的漂移。
+
+---
+
 ## 🧱 架构设计
 
 ### 适配器 + 抽象基类 + 装饰器
