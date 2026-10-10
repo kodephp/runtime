@@ -2,7 +2,7 @@
 
 > **一个为现代 PHP 常驻内存应用设计的统一运行时抽象包**
 > 支持 Swoole、Swow、PHP Fiber（协程）、多进程、多线程、Console 及传统 CLI 模式
-> 面向 PHP 8.3+，基于 enum、#[\Override]、typed class constants、Fiber 协作式调度器等 PHP 8.3 新特性构建
+> 面向 PHP 8.4+，基于 enum、#[\Override]、typed class constants、Fiber 协作式调度器等 PHP 8.3 新特性构建
 
 ---
 
@@ -72,7 +72,7 @@
 composer require kode/runtime
 ```
 
-> 最低要求 PHP 8.3。`kode/context` 与 `kode/console` 为必需依赖（已随 `composer require` 自动安装）。可选并发能力通过扩展提供：`ext-swoole`、`ext-swow`、`ext-pcntl`、`ext-parallel`。
+> 最低要求 PHP 8.4。`kode/context` 与 `kode/console` 为必需依赖（已随 `composer require` 自动安装）。可选并发能力通过扩展提供：`ext-swoole`、`ext-swow`、`ext-pcntl`、`ext-parallel`。
 
 ### 2. 环境检测
 
@@ -711,7 +711,7 @@ interface ChannelInterface
 |---------|------|------|
 | Swoole | ✅ | v4.8+，需启用协程 |
 | Swow | ✅ | v1.5+ |
-| PHP Fiber | ✅ | PHP 8.3+ 原生 Fiber + 内置 `FiberScheduler` |
+| PHP Fiber | ✅ | PHP 8.4+ 原生 Fiber + 内置 `FiberScheduler` |
 | Console | ✅ | 装饰器模式，委托底层并发运行时（依赖 `kode/console ^4.0`） |
 | 多进程 | ✅ | 基于 PCNTL（`ext-pcntl`） |
 | 多线程 | ⚠️ | 需 `ext-parallel`（ZTS 版本 PHP） |
@@ -754,7 +754,7 @@ composer cs-fix
 
 ## 🛡️ 特性
 
-- **类型安全**：PHP 8.3+ 严格类型、enum、`#[\Override]`、typed class constants、`readonly`
+- **类型安全**：PHP 8.4+ 严格类型、enum、`#[\Override]`、typed class constants、`readonly`
 - **真异步**：Fiber 模式内置事件循环，`sleep` / `Channel` 阻塞真正让出，无忙等
 - **内存管理**：自动清理协程栈与作用域回调
 - **异常处理**：协程/子进程异常统一捕获并向上传播
