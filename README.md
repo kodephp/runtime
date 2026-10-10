@@ -11,7 +11,7 @@
 | 项目 | 内容 |
 |------|------|
 | **包名** | `kode/runtime` |
-| **PHP 版本** | `^8.3` |
+| **PHP 版本** | `^8.4` |
 | **许可证** | Apache-2.0 |
 | **维护状态** | Active |
 | **GitHub** | `https://github.com/kodephp/runtime` |
@@ -21,7 +21,7 @@
 
 | 包名 | 版本 | 说明 |
 |------|------|------|
-| `php` | `^8.3` | 运行环境（必需） |
+| `php` | `^8.4` | 运行环境（必需） |
 | `kode/context` | `^3.0` | 协程/纤程上下文管理（必需） |
 | `kode/console` | `^4.0` | 控制台输入输出（必需，用于 `ConsoleRuntime` 装饰器与 `RuntimeCommand` 命令基类） |
 
