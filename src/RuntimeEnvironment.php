@@ -112,14 +112,9 @@ enum RuntimeEnvironment: string
      */
     public static function detect(): self
     {
-        foreach (self::DETECT_ORDER as $value) {
-            $environment = self::from($value);
-            if ($environment->isAvailable()) {
-                return $environment;
-            }
-        }
+        $value = array_find(self::DETECT_ORDER, fn($value) => self::from($value)->isAvailable());
 
-        return self::Cli;
+        return $value !== null ? self::from($value) : self::Cli;
     }
 
     /**

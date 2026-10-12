@@ -225,10 +225,8 @@ final class FiberScheduler
         $current = \Fiber::getCurrent();
         $currentId = $current !== null ? spl_object_id($current) : 0;
 
-        foreach ($this->timers as $id => $timer) {
-            if ($id !== $currentId) {
-                return true;
-            }
+        if (array_any($this->timers, fn($_, $id) => $id !== $currentId)) {
+            return true;
         }
 
         foreach ($this->ready as $fiber) {
