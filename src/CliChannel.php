@@ -14,11 +14,6 @@ namespace Kode\Runtime;
 final class CliChannel implements ChannelInterface
 {
     /**
-     * 同步环境下轮询的间隔（微秒）
-     */
-    private const int POLL_INTERVAL_US = 200;
-
-    /**
      * @var \SplQueue<mixed>
      */
     private readonly \SplQueue $queue;
@@ -53,11 +48,11 @@ final class CliChannel implements ChannelInterface
             return false;
         }
 
-        if ($this->isFull() && !$this->await(fn (): bool => !$this->isFull(), $timeout)) {
+        if ($this->isFull() && !$this->await(fn (): bool => !$this->isFull(), $timeout)) { // @phpstan-ignore booleanNot.alwaysFalse (await 为运行期轮询/挂起语义，静态不可证)
             return false;
         }
 
-        if ($this->closed) {
+        if ($this->closed) { // @phpstan-ignore if.alwaysFalse (await 让出期间其他协程可 close，防御二次检查)
             return false;
         }
 
@@ -75,7 +70,7 @@ final class CliChannel implements ChannelInterface
             return null;
         }
 
-        if ($this->queue->isEmpty() && !$this->await(fn (): bool => !$this->queue->isEmpty(), $timeout)) {
+        if ($this->queue->isEmpty() && !$this->await(fn (): bool => !$this->queue->isEmpty(), $timeout)) { // @phpstan-ignore booleanNot.alwaysFalse (await 为运行期轮询/挂起语义，静态不可证)
             return null;
         }
 

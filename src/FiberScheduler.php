@@ -22,7 +22,7 @@ final class FiberScheduler
     /**
      * 就绪队列
      *
-     * @var \SplQueue<\Fiber>
+     * @var \SplQueue<\Fiber<mixed, mixed, mixed, mixed>>
      */
     private \SplQueue $ready;
 
@@ -36,14 +36,14 @@ final class FiberScheduler
     /**
      * 定时器列表：Fiber ID => [唤醒时间, Fiber]
      *
-     * @var array<int, array{float, \Fiber}>
+     * @var array<int, array{float, \Fiber<mixed, mixed, mixed, mixed>}>
      */
     private array $timers = [];
 
     /**
      * 存活的 Fiber：ID => Fiber
      *
-     * @var array<int, \Fiber>
+     * @var array<int, \Fiber<mixed, mixed, mixed, mixed>>
      */
     private array $alive = [];
 
@@ -89,7 +89,7 @@ final class FiberScheduler
      *
      * @param callable $callback 协程函数
      * @param callable|null $onFinish 协程结束回调（无论成功失败都会执行）
-     * @return \Fiber Fiber 实例
+     * @return \Fiber<mixed, mixed, mixed, mixed> Fiber 实例
      */
     public function spawn(callable $callback, ?callable $onFinish = null): \Fiber
     {
@@ -263,7 +263,7 @@ final class FiberScheduler
     /**
      * 推进一个 Fiber 的执行
      *
-     * @param \Fiber $fiber 目标 Fiber
+     * @param \Fiber<mixed, mixed, mixed, mixed> $fiber 目标 Fiber
      */
     private function step(\Fiber $fiber): void
     {
@@ -295,7 +295,7 @@ final class FiberScheduler
     /**
      * 将 Fiber 放入就绪队列
      *
-     * @param \Fiber $fiber 目标 Fiber
+     * @param \Fiber<mixed, mixed, mixed, mixed> $fiber 目标 Fiber
      */
     private function enqueue(\Fiber $fiber): void
     {

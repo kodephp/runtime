@@ -13,7 +13,7 @@ namespace Kode\Runtime;
 final class Runtime
 {
     /** @var string 版本号（与 composer.json 的 version 保持同步，漏改由 VersionGuardTest 拦下） */
-    public const string VERSION = '4.0.3';
+    public const string VERSION = '4.0.4';
 
     private static ?RuntimeInterface $adapter = null;
 
@@ -264,7 +264,7 @@ final class Runtime
 
         $pid = pcntl_fork();
 
-        if ($pid === -1 || $pid === false || $pid === null) {
+        if ($pid === -1) {
             throw new Exception\RuntimeException('进程创建失败（当前环境不支持 fork）');
         }
 

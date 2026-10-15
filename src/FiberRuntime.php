@@ -54,7 +54,7 @@ final class FiberRuntime extends AbstractRuntime
      * 启动一个协程（立即执行至首次挂起）
      *
      * @param callable $callback 协程函数
-     * @return \Fiber Fiber 实例
+     * @return \Fiber<mixed, mixed, mixed, mixed> Fiber 实例
      */
     #[\Override]
     public function async(callable $callback): \Fiber
@@ -68,7 +68,7 @@ final class FiberRuntime extends AbstractRuntime
                 $callback();
             },
             function () use (&$scopeKey): void {
-                if ($scopeKey !== null) {
+                if ($scopeKey !== null) { // @phpstan-ignore notIdentical.alwaysFalse ($scopeKey 经引用由 Fiber 内闭包赋值 string，静态不可证)
                     $this->flushScope($scopeKey);
                 }
             }

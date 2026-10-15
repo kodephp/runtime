@@ -134,7 +134,7 @@ abstract class AbstractRuntime implements RuntimeInterface
     /**
      * 生成协程作用域标识
      *
-     * @param \Fiber $fiber 协程
+     * @param \Fiber<mixed, mixed, mixed, mixed> $fiber 协程
      * @return string 作用域标识
      */
     protected function fiberScope(\Fiber $fiber): string

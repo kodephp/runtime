@@ -35,3 +35,5 @@
 /.php_cs.dist export-ignore
 /.php_cs export-ignore
 /composer.lock export-ignore
+/phpstan.neon           export-ignore
+/stubs/                 export-ignore
